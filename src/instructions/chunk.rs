@@ -62,7 +62,7 @@ impl Display for Chunk {
 
 #[cfg(test)]
 mod tests {
-    use crate::instructions::{constant::Constant, return_inst::Return, values::Value};
+    use crate::instructions::{constant::Constant, return_inst::Return, values::values::Value};
 
     use super::*;
 

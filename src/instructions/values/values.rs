@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use crate::errors::err::ErrTrait;
 
-use super::err::InstructionErr;
+use super::super::err::InstructionErr;
 
 #[derive(PartialEq, Clone)]
 pub enum Value {

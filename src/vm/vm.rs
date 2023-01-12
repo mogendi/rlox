@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{
     compiler::compiler::Compiler,
     errors::err::ErrTrait,
-    instructions::{chunk::Chunk, values::Value},
+    instructions::{chunk::Chunk, values::values::Value},
 };
 
 pub struct VM<'a> {

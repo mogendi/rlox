@@ -8,8 +8,10 @@ use crate::errors::err::ErrTrait;
 
 use super::{
     err::InstructionErr,
-    instructions::{InstructionBase, InstructionType},
-    values::Value,
+    instructions::{
+        InstructionBase,
+        InstructionType,
+    }, values::values::Value,
 };
 
 #[derive(Debug)]
