@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::errors::err::ErrTrait;
 
-use super::{compiler::Parser, err::InterpreterErr, token::TokenType};
+use super::{parser::Parser, err::InterpreterErr, token::TokenType};
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
