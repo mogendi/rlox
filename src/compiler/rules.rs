@@ -51,25 +51,9 @@ impl TryFrom<u8> for Precendence {
 }
 
 pub struct ParseRule<'a> {
-    pub prefix: Option<Box<dyn FnOnce(&'a Parser<'a>) -> Result<(), Box<dyn ErrTrait>>>>,
+    pub prefix: Option<Box<dyn FnOnce(&'a Parser<'a>, bool) -> Result<(), Box<dyn ErrTrait>>>>,
     pub infix: Option<Box<dyn FnOnce(&'a Parser<'a>) -> Result<(), Box<dyn ErrTrait>>>>,
     pub precedence: Precendence,
-}
-
-impl<'a> ParseRule<'a> {
-    pub fn get_prefix(
-        &'a self,
-    ) -> Result<
-        &'a Box<dyn FnOnce(&'a Parser<'a>) -> Result<(), Box<dyn ErrTrait>>>,
-        Box<dyn ErrTrait>,
-    > {
-        match &self.prefix {
-            Some(prefix) => Ok(prefix),
-            None => Err(Box::new(InterpreterErr::new(
-                "Attempted to construct a prefix for rule that doesn't have a prefix".to_string(),
-            ))),
-        }
-    }
 }
 
 impl<'a> Debug for ParseRule<'a> {
@@ -81,7 +65,7 @@ impl<'a> Debug for ParseRule<'a> {
 pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
     match token_type {
         TokenType::LEFT_PAREN => ParseRule {
-            prefix: Some(Box::new(|parser| parser.grouping())),
+            prefix: Some(Box::new(|parser, _| parser.grouping())),
             infix: None,
             precedence: Precendence::None,
         },
@@ -117,7 +101,7 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::MINUS => ParseRule {
-            prefix: Some(Box::new(|parser| parser.unary())),
+            prefix: Some(Box::new(|parser, _| parser.unary())),
             infix: Some(Box::new(|parser| parser.binary())),
             precedence: Precendence::Term,
         },
@@ -147,7 +131,7 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::BANG => ParseRule {
-            prefix: Some(Box::new(|parser| parser.unary())),
+            prefix: Some(Box::new(|parser, _| parser.unary())),
             infix: None,
             precedence: Precendence::None,
         },
@@ -195,19 +179,19 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::IDENTIFIER => ParseRule {
-            prefix: None,
+            prefix: Some(Box::new(|parser, can_assign| parser.var(can_assign))),
             infix: None,
             precedence: Precendence::None,
         },
 
         TokenType::STRING => ParseRule {
-            prefix: Some(Box::new(|parser| parser.literal())),
+            prefix: Some(Box::new(|parser, _| parser.literal())),
             infix: None,
             precedence: Precendence::None,
         },
 
         TokenType::NUMBER => ParseRule {
-            prefix: Some(Box::new(|parser| parser.number())),
+            prefix: Some(Box::new(|parser, _| parser.number())),
             infix: None,
             precedence: Precendence::None,
         },
@@ -231,7 +215,7 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::FALSE => ParseRule {
-            prefix: Some(Box::new(|parser| parser.literal())),
+            prefix: Some(Box::new(|parser, _| parser.literal())),
             infix: None,
             precedence: Precendence::None,
         },
@@ -255,7 +239,7 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::NIL => ParseRule {
-            prefix: Some(Box::new(|parser| parser.literal())),
+            prefix: Some(Box::new(|parser, _| parser.literal())),
             infix: None,
             precedence: Precendence::None,
         },
@@ -291,7 +275,7 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::TRUE => ParseRule {
-            prefix: Some(Box::new(|parser| parser.literal())),
+            prefix: Some(Box::new(|parser, _| parser.literal())),
             infix: None,
             precedence: Precendence::None,
         },

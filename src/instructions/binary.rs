@@ -4,14 +4,12 @@ use std::{
     rc::Rc,
 };
 
-use crate::errors::err::ErrTrait;
+use crate::{errors::err::ErrTrait, vm::table::Table};
 
 use super::{
     err::InstructionErr,
-    instructions::{
-        InstructionBase,
-        InstructionType,
-    }, values::values::Value,
+    instructions::{InstructionBase, InstructionType},
+    values::values::Value,
 };
 
 #[derive(Debug)]
@@ -171,7 +169,11 @@ impl Binary {
 }
 
 impl InstructionBase for Binary {
-    fn eval(&self, stack: Rc<RefCell<Vec<Value>>>) -> Result<Value, Box<dyn ErrTrait>> {
+    fn eval(
+        &self,
+        stack: Rc<RefCell<Vec<Value>>>,
+        _: Rc<RefCell<Table>>,
+    ) -> Result<(), Box<dyn ErrTrait>> {
         let right = stack.borrow_mut().pop().unwrap();
         let left = stack.borrow_mut().pop().unwrap();
         let res = match self.op {
@@ -184,7 +186,7 @@ impl InstructionBase for Binary {
             BinaryOp::LESS => self.eval_less(left, right)?,
         };
         stack.borrow_mut().push(res.clone());
-        Ok(res)
+        Ok(())
     }
 
     fn disassemble(&self) -> InstructionType {

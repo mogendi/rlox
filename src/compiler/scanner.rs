@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, fmt::Display};
+use std::{cell::RefCell, fmt::Display, marker::PhantomData};
 
 use crate::errors::err::ErrTrait;
 
@@ -67,6 +67,9 @@ impl<'a> Scanner<'a> {
         {
             index = get_next_index(index)
         }
+        if index >= self.input_stream.len() {
+            index = self.input_stream.len() - 1;
+        }
         index
     }
 
@@ -80,7 +83,7 @@ impl<'a> Scanner<'a> {
     pub(super) fn line_to_string(&self) -> String {
         let curr = match *self.current.borrow() >= self.input_stream.len() {
             true => self.input_stream.len() - 1,
-            false => *self.current.borrow()
+            false => *self.current.borrow(),
         };
         let offset = match self.input_stream[curr] as char {
             '\n' => Some(1),
@@ -91,10 +94,11 @@ impl<'a> Scanner<'a> {
             start_index += 1;
         }
         let end_index = self.seek('\n', FORWARD, offset);
+        println!("SI: {}, EI: {}", start_index, end_index);
         String::from_utf8_lossy(&self.input_stream[start_index..=end_index]).to_string()
     }
 
-    fn is_at_end(&self) -> bool {
+    pub fn is_at_end(&self) -> bool {
         *self.current.borrow() >= self.input_stream.len() - 1
     }
 
@@ -115,17 +119,6 @@ impl<'a> Scanner<'a> {
 
     fn peek_next(&self) -> char {
         self.input_stream[*self.current.borrow() + 1] as char
-    }
-
-    fn match_(&self, expected: char) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-        if self.peek() != expected {
-            return false;
-        }
-        self.advance();
-        true
     }
 
     fn match_next(&self, expected: char) -> bool {
@@ -195,11 +188,11 @@ impl<'a> Scanner<'a> {
     }
 
     fn number(&'a self) -> Result<Token<'a>, Box<dyn ErrTrait>> {
-        loop { 
-            if Self::is_digit(self.peek_next()) && !self.is_at_end(){
+        loop {
+            if Self::is_digit(self.peek_next()) && !self.is_at_end() {
                 self.advance();
             } else {
-                break
+                break;
             }
         }
         self.skip_whitespace();

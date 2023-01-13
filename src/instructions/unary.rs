@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::errors::err::ErrTrait;
+use crate::{errors::err::ErrTrait, vm::table::Table};
 
 use super::{
     err::InstructionErr,
@@ -43,13 +43,16 @@ impl Unary {
 }
 
 impl InstructionBase for Unary {
-    fn eval(&self, stack: Rc<RefCell<Vec<Value>>>) -> Result<Value, Box<dyn ErrTrait>> {
+    fn eval(
+        &self,
+        stack: Rc<RefCell<Vec<Value>>>,
+        _: Rc<RefCell<Table>>,
+    ) -> Result<(), Box<dyn ErrTrait>> {
         let operand = stack.borrow_mut().pop().unwrap();
         match self.op {
             UnaryOp::Negate => match operand {
                 Value::Number(number) => {
                     stack.borrow_mut().push(Value::Number(-number));
-                    return Ok(Value::Number(-number));
                 }
                 _ => {
                     return Err(Box::new(InstructionErr::new(
@@ -60,9 +63,9 @@ impl InstructionBase for Unary {
             },
             UnaryOp::Bang => {
                 stack.borrow_mut().push(Value::Bool(!operand.truthy()?));
-                Ok(Value::Bool(!operand.truthy()?))
-            },
+            }
         }
+        Ok(())
     }
 
     fn disassemble(&self) -> InstructionType {

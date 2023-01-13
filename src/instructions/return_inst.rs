@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::errors::err::ErrTrait;
+use crate::{errors::err::ErrTrait, vm::table::Table};
 
 use super::{
     instructions::{InstructionBase, InstructionType},
@@ -25,8 +25,12 @@ impl Return {
 }
 
 impl InstructionBase for Return {
-    fn eval(&self, stack: Rc<RefCell<Vec<Value>>>) -> Result<Value, Box<dyn ErrTrait>> {
-        Ok(Value::Number(0.0))
+    fn eval(
+        &self,
+        _: Rc<RefCell<Vec<Value>>>,
+        _: Rc<RefCell<Table>>,
+    ) -> Result<(), Box<dyn ErrTrait>> {
+        Ok(())
     }
 
     fn disassemble(&self) -> InstructionType {

@@ -37,8 +37,8 @@ Line {}: {}
 ",
             self.line,
             self.line_contents,
-            " ".repeat(self.offset),
-            " ".repeat(self.offset),
+            " ".repeat(self.offset - 2),
+            " ".repeat(self.offset - 2),
             self.message
         )
     }

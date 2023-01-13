@@ -1,8 +1,10 @@
 pub mod binary;
 pub mod chunk;
 pub mod constant;
+pub mod define;
 mod err;
 pub mod instructions;
+pub mod print;
 pub mod return_inst;
 pub mod unary;
 pub mod values;

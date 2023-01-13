@@ -11,28 +11,25 @@ use super::{
     values::values::Value,
 };
 
-#[derive(Debug)]
-pub struct Constant {
+pub struct Print {
     code: InstructionType,
-    operand: Value,
 }
 
-impl Constant {
-    pub fn new(operand: Value) -> Self {
-        Constant {
-            code: InstructionType::OP_CONST,
-            operand,
+impl Print {
+    pub fn new() -> Self {
+        Print {
+            code: InstructionType::OP_PRINT,
         }
     }
 }
 
-impl InstructionBase for Constant {
+impl InstructionBase for Print {
     fn eval(
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
     ) -> Result<(), Box<dyn ErrTrait>> {
-        stack.borrow_mut().push(self.operand.clone());
+        println!("{}", stack.borrow_mut().pop().unwrap());
         Ok(())
     }
 
@@ -41,8 +38,14 @@ impl InstructionBase for Constant {
     }
 }
 
-impl Display for Constant {
+impl Debug for Print {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}       {}", self.code, self.operand)
+        write!(f, "{:?}", self.code)
+    }
+}
+
+impl Display for Print {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.code)
     }
 }

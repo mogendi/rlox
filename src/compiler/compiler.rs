@@ -1,4 +1,7 @@
-use std::{cell::RefCell, fmt::{Debug, Display}, path::Prefix, borrow::Borrow};
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Display},
+};
 
 use crate::{
     errors::err::ErrTrait,
@@ -6,7 +9,9 @@ use crate::{
         binary::{Binary, BinaryOp},
         chunk::Chunk,
         constant::Constant,
-        instructions::Instruction,
+        define::{Define, Override, Resolve, Scope},
+        instructions::{Instruction, Pop},
+        print::Print,
         unary::{Unary, UnaryOp},
         values::values::Value,
     },
@@ -81,6 +86,18 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn check(&self, type_: TokenType) -> bool {
+        self.current.borrow().token_type == type_
+    }
+
+    fn match_(&'a self, type_: TokenType) -> Result<bool, Box<dyn ErrTrait>> {
+        if !self.check(type_) {
+            return Ok(false);
+        }
+        self.advance()?;
+        Ok(true)
+    }
+
     fn advance(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         let next = self.scanner.next()?;
         self.previous
@@ -91,7 +108,6 @@ impl<'a> Parser<'a> {
 
     fn consume(&'a self, expected: TokenType) -> Result<(), Box<dyn ErrTrait>> {
         let token = self.current.borrow().clone();
-        println!("Got: {}, expecting {}", token, expected);
         if token.token_type == expected {
             self.advance()?;
             return Ok(());
@@ -124,7 +140,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn push(&self, inst: impl Instruction + 'static) -> Result<(), Box<dyn ErrTrait>>{
+    fn push(&self, inst: impl Instruction + 'static) -> Result<(), Box<dyn ErrTrait>> {
         let mut chunk = self.chunk.borrow_mut();
         chunk.write_to_chunk(Box::new(inst), self.scanner.line().number)?;
         Ok(())
@@ -161,24 +177,40 @@ impl<'a> Parser<'a> {
             TokenType::STRING => Value::String(String::from_utf8_lossy(token.literal).to_string()),
             _ => {
                 let scan_line = self.scanner.line();
-                return Err(
-                    Box::new(
-                        ParserErr::new(
-                            format!(
-                                "Expected literal [true | false| nil] found {}",
-                                String::from_utf8_lossy(token.literal)
-                            ),
-                            self.scanner.line_to_string(),
-                            scan_line.number,
-                            scan_line.offset,
-                        )
-                    )
-                )
+                return Err(Box::new(ParserErr::new(
+                    format!(
+                        "Expected literal [true | false| nil] found {}",
+                        String::from_utf8_lossy(token.literal)
+                    ),
+                    self.scanner.line_to_string(),
+                    scan_line.number,
+                    scan_line.offset,
+                )));
             }
         };
 
         self.push(Constant::new(val))?;
         Ok(())
+    }
+
+    pub fn var(&'a self, can_assign: bool) -> Result<(), Box<dyn ErrTrait>> {
+        let token = self.get_previous()?;
+        let match_ = self.match_(TokenType::EQUAL)?;
+        if match_ && can_assign {
+            self.expression()?;
+            return self.push(Override::new(format!("{}", token)));
+        }
+        if match_ && !can_assign {
+            let scan_line = self.scanner.line();
+            return Err(Box::new(ParserErr::new(
+                "Invalid assignment target. Can only assign to previously defined variables."
+                    .to_string(),
+                self.scanner.line_to_string(),
+                scan_line.number,
+                scan_line.offset,
+            )));
+        }
+        self.push(Resolve::new(format!("{}", token)))
     }
 
     pub fn unary(&'a self) -> Result<(), Box<dyn ErrTrait>> {
@@ -196,7 +228,7 @@ impl<'a> Parser<'a> {
                 )));
             }
         };
-        self.parse(Precendence::Unary)?;
+        self.parse_expr(Precendence::Unary)?;
         self.push(Unary::new(op))?;
         Ok(())
     }
@@ -204,8 +236,8 @@ impl<'a> Parser<'a> {
     pub fn binary(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         let token = self.get_previous()?;
         let rule = construct_rule(token.token_type);
-        self.parse(rule.precedence.next()?)?;
-        let mut after_push_hook: fn(&Parser) -> Result<(), Box<dyn ErrTrait>> = |_| {Ok(())};
+        self.parse_expr(rule.precedence.next()?)?;
+        let mut after_push_hook: fn(&Parser) -> Result<(), Box<dyn ErrTrait>> = |_| Ok(());
         let op = match token.token_type {
             TokenType::PLUS => BinaryOp::ADD,
             TokenType::MINUS => BinaryOp::SUBTRACT,
@@ -215,15 +247,15 @@ impl<'a> Parser<'a> {
             TokenType::GREATER => BinaryOp::GREATER,
             TokenType::LESS => BinaryOp::LESS,
             TokenType::BANG_EQUAL => {
-                after_push_hook = |parser| { parser.push(Unary::new(UnaryOp::Bang)) };
+                after_push_hook = |parser| parser.push(Unary::new(UnaryOp::Bang));
                 BinaryOp::EQUAL
             }
             TokenType::GREATER_EQUAL => {
-                after_push_hook = |parser| { parser.push(Unary::new(UnaryOp::Bang)) };
+                after_push_hook = |parser| parser.push(Unary::new(UnaryOp::Bang));
                 BinaryOp::LESS
             }
             TokenType::LESS_EQUAL => {
-                after_push_hook = |parser| { parser.push(Unary::new(UnaryOp::Bang)) };
+                after_push_hook = |parser| parser.push(Unary::new(UnaryOp::Bang));
                 BinaryOp::GREATER
             }
             _ => {
@@ -247,12 +279,15 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn parse(&'a self, prec: Precendence) -> Result<(), Box<dyn ErrTrait>> {
+    fn parse_expr(&'a self, prec: Precendence) -> Result<(), Box<dyn ErrTrait>> {
         let prefix_not_found_err = || {
             println!("Parser [Prefix not found]]: {}", self);
             let scan_line = self.scanner.line();
             Box::new(ParserErr::new(
-                "Expected expression".to_string(),
+                format!(
+                    "Expected expression, found {}",
+                    self.previous.borrow().as_ref().unwrap()
+                ),
                 self.scanner.line_to_string(),
                 scan_line.number,
                 scan_line.offset,
@@ -263,7 +298,10 @@ impl<'a> Parser<'a> {
             println!("Parser [Infix not found]]: {}", self);
             let scan_line = self.scanner.line();
             Box::new(ParserErr::new(
-                "Expected expression".to_string(),
+                format!(
+                    "Expected expression, found {}",
+                    self.previous.borrow().as_ref().unwrap()
+                ),
                 self.scanner.line_to_string(),
                 scan_line.number,
                 scan_line.offset,
@@ -272,8 +310,9 @@ impl<'a> Parser<'a> {
 
         self.advance()?;
         let prefix_rule = construct_rule(self.get_previous()?.token_type);
+        let can_assign = prec as u8 <= Precendence::Assignment as u8;
         match prefix_rule.prefix {
-            Some(method) => method(self)?,
+            Some(method) => method(self, can_assign)?,
             None => return Err(prefix_not_found_err()),
         }
 
@@ -293,14 +332,67 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&'a self) -> Result<(), Box<dyn ErrTrait>> {
-        self.parse(Precendence::Assignment)
+        self.parse_expr(Precendence::Assignment)
+    }
+
+    fn print(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.expression()?;
+        self.consume(TokenType::SEMICOLON)?;
+        self.push(Print::new())?;
+        Ok(())
+    }
+
+    fn expr_stmt(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.expression()?;
+        self.consume(TokenType::SEMICOLON)?;
+        self.push(Pop::new())?;
+        Ok(())
+    }
+
+    fn var_decl(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+        if self.match_(TokenType::EQUAL)? {
+            self.expression()?;
+        } else {
+            self.push(Constant::new(Value::Nil))?;
+        }
+        self.consume(TokenType::SEMICOLON)?;
+        self.push(Define::new(Scope::Global, format!("{}", id)))?;
+        Ok(())
+    }
+
+    fn statement(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        if self.match_(TokenType::PRINT)? {
+            return self.print();
+        }
+
+        self.expr_stmt()
+    }
+
+    fn declaration(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        if self.match_(TokenType::VAR)? {
+            return self.var_decl();
+        }
+        self.statement()
+    }
+
+    fn parse(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        loop {
+            if self.scanner.is_at_end() {
+                break;
+            }
+            self.declaration()?;
+        }
+        Ok(())
     }
 }
 
 impl<'a> Display for Parser<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, 
-"
+        write!(
+            f,
+            "
 Scanner: {}
 -----------------------------------------
 Current: {}
@@ -311,7 +403,12 @@ Chunk:
 ======
 
 {}
-", self.scanner, self.current.borrow(), self.previous.borrow(), self.chunk.borrow())
+",
+            self.scanner,
+            self.current.borrow(),
+            self.previous.borrow(),
+            self.chunk.borrow()
+        )
     }
 }
 
@@ -322,7 +419,7 @@ impl Compiler {
         let scanner = Scanner::new(src);
         let mut chunk = Chunk::new();
         let parser = Parser::new(&scanner, &mut chunk)?;
-        parser.expression()?;
+        parser.parse()?;
         print!("{}", parser);
         Ok(chunk)
     }
