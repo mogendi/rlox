@@ -25,13 +25,6 @@ impl Value {
             ))),
         }
     }
-
-    pub fn is_truthy(&self) -> bool {
-        match self.truthy() {
-            Ok(val) => return val,
-            Err(_) => false,
-        }
-    }
 }
 
 impl Debug for Value {

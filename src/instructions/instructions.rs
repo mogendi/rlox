@@ -1,6 +1,5 @@
 use std::{
     cell::RefCell,
-    env,
     fmt::{Debug, Display},
     rc::Rc,
 };
@@ -17,6 +16,7 @@ pub enum InstructionType {
     OP_BINARY,
     OP_PRINT,
     OP_POP,
+    OP_POPN,
     OP_DEFINE,
     OP_RESOLVE,
     OP_OVERRIDE,
@@ -76,5 +76,47 @@ impl Debug for Pop {
 impl Display for Pop {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.code)
+    }
+}
+
+pub struct PopN {
+    code: InstructionType,
+    n: usize,
+}
+
+impl PopN {
+    pub fn new(n: usize) -> Self {
+        PopN {
+            code: InstructionType::OP_POPN,
+            n,
+        }
+    }
+}
+
+impl InstructionBase for PopN {
+    fn eval(
+        &self,
+        stack: Rc<RefCell<Vec<Value>>>,
+        _: Rc<RefCell<Table>>,
+    ) -> Result<(), Box<dyn ErrTrait>> {
+        let n_actual = (*stack).borrow().len().saturating_sub(self.n);
+        stack.borrow_mut().truncate(n_actual);
+        Ok(())
+    }
+
+    fn disassemble(&self) -> InstructionType {
+        self.code.clone()
+    }
+}
+
+impl Debug for PopN {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}       {}", self.code, self.n)
+    }
+}
+
+impl Display for PopN {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}       {}", self.code, self.n)
     }
 }

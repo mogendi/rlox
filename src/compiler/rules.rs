@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::errors::err::ErrTrait;
 
-use super::{parser::Parser, err::InterpreterErr, token::TokenType};
+use super::{err::InterpreterErr, parser::Parser, token::TokenType};
 
 #[repr(u8)]
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
@@ -281,6 +281,12 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::VAR => ParseRule {
+            prefix: None,
+            infix: None,
+            precedence: Precendence::None,
+        },
+
+        TokenType::CONST => ParseRule {
             prefix: None,
             infix: None,
             precedence: Precendence::None,

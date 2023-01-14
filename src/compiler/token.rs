@@ -34,6 +34,7 @@ pub enum TokenType {
     // Keywords.
     AND,
     CLASS,
+    CONST,
     ELSE,
     FALSE,
     FUN,
@@ -85,6 +86,7 @@ impl Display for TokenType {
             // Keywords.
             TokenType::AND => write!(f, "{}", "and"),
             TokenType::CLASS => write!(f, "{}", "class"),
+            TokenType::CONST => write!(f, "{}", "const"),
             TokenType::ELSE => write!(f, "{}", "else"),
             TokenType::FALSE => write!(f, "{}", "false"),
             TokenType::FUN => write!(f, "{}", "fun"),

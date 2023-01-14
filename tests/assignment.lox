@@ -1,0 +1,7 @@
+var a = 1;
+var b = 2;
+var c = 3;
+var d = 4;
+
+// should fail with "Invalid assignment target"
+a * b = c + d;

@@ -28,6 +28,12 @@ impl ErrTraitBase for ScannerErr {
 
 impl Display for ScannerErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let get_offset = || {
+            if self.offset < 2 {
+                return self.offset;
+            }
+            self.offset - 2
+        };
         write!(
             f,
             "
@@ -37,8 +43,8 @@ Line {}: {}
 ",
             self.line,
             self.line_contents,
-            " ".repeat(self.offset - 2),
-            " ".repeat(self.offset - 2),
+            " ".repeat(get_offset()),
+            " ".repeat(get_offset()),
             self.message
         )
     }

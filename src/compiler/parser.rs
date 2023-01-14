@@ -9,7 +9,7 @@ use crate::{
         binary::{Binary, BinaryOp},
         chunk::Chunk,
         constant::Constant,
-        define::{Define, Override, Resolve, Scope},
+        define::{Define, DefinitionScope, Override, Resolve},
         instructions::{Instruction, Pop},
         print::Print,
         unary::{Unary, UnaryOp},
@@ -18,6 +18,7 @@ use crate::{
 };
 
 use super::{
+    compiler::Compiler,
     err::ParserErr,
     rules::{construct_rule, Precendence},
     scanner::Scanner,
@@ -73,16 +74,22 @@ pub struct Parser<'a> {
     current: RefCell<Token<'a>>,
     previous: RefCell<Option<Token<'a>>>,
     chunk: RefCell<&'a mut Chunk>,
+    compiler: RefCell<&'a mut Compiler<'a>>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(scanner: &'a Scanner, chunk: &'a mut Chunk) -> Result<Self, Box<dyn ErrTrait>> {
+    pub fn new(
+        scanner: &'a Scanner,
+        chunk: &'a mut Chunk,
+        compiler: &'a mut Compiler<'a>,
+    ) -> Result<Self, Box<dyn ErrTrait>> {
         let current = RefCell::new(scanner.next()?);
         Ok(Parser {
             scanner,
             current,
             previous: RefCell::new(None),
             chunk: RefCell::new(chunk),
+            compiler: RefCell::new(compiler),
         })
     }
 
@@ -146,10 +153,21 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn start_scope(&'a self) {
+        self.compiler.borrow_mut().start_scope();
+    }
+
+    fn end_scope(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.compiler
+            .borrow_mut()
+            .end_scope(&mut self.chunk.borrow_mut(), self.scanner.line().number)?;
+        Ok(())
+    }
+
     pub fn number(&self) -> Result<(), Box<dyn ErrTrait>> {
         let token = self.get_previous()?;
-        let val = match String::from_utf8_lossy(token.literal).parse::<u64>() {
-            Ok(float) => float as f64,
+        let val = match String::from_utf8_lossy(token.literal).parse::<f64>() {
+            Ok(float) => float,
             Err(err) => {
                 let scan_line = self.scanner.line();
                 return Err(Box::new(ParserErr::new(
@@ -195,10 +213,34 @@ impl<'a> Parser<'a> {
 
     pub fn var(&'a self, can_assign: bool) -> Result<(), Box<dyn ErrTrait>> {
         let token = self.get_previous()?;
+
+        // we need to find the relvant scope for the identifier before we
+        // build any instructions
+        let depth = self.compiler.borrow().scope();
+        let is_const = self.compiler.borrow().check_const_from_token(&token);
+        let scope = match depth {
+            0 => DefinitionScope::Global,
+            _ => match self.compiler.borrow().resolve(&token) {
+                Some(val) => DefinitionScope::Local(val),
+                None => {
+                    let scan_line = self.scanner.line();
+                    return Err(Box::new(ParserErr::new(
+                        format!(
+                            "Can not access or overwrite undefined variable: `{}`",
+                            token
+                        ),
+                        self.scanner.line_to_string(),
+                        scan_line.number,
+                        scan_line.offset,
+                    )));
+                }
+            },
+        };
+
         let match_ = self.match_(TokenType::EQUAL)?;
-        if match_ && can_assign {
+        if match_ && can_assign && !is_const {
             self.expression()?;
-            return self.push(Override::new(format!("{}", token)));
+            return self.push(Override::new(format!("{}", token), scope));
         }
         if match_ && !can_assign {
             let scan_line = self.scanner.line();
@@ -210,7 +252,19 @@ impl<'a> Parser<'a> {
                 scan_line.offset,
             )));
         }
-        self.push(Resolve::new(format!("{}", token)))
+        if match_ && is_const {
+            let scan_line = self.scanner.line();
+            return Err(Box::new(ParserErr::new(
+                format!(
+                    "Invalid assignment target. Can not assign to `const` `{}`",
+                    token
+                ),
+                self.scanner.line_to_string(),
+                scan_line.number,
+                scan_line.offset,
+            )));
+        }
+        self.push(Resolve::new(format!("{}", token), scope))
     }
 
     pub fn unary(&'a self) -> Result<(), Box<dyn ErrTrait>> {
@@ -342,6 +396,14 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn block(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        while !self.check(TokenType::RIGHT_BRACE) && !self.check(TokenType::EOF) {
+            self.declaration()?;
+        }
+        self.consume(TokenType::RIGHT_BRACE)?;
+        Ok(())
+    }
+
     fn expr_stmt(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         self.expression()?;
         self.consume(TokenType::SEMICOLON)?;
@@ -349,16 +411,42 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn var_decl(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+    fn var_decl(&'a self, const_: bool) -> Result<(), Box<dyn ErrTrait>> {
         self.consume(TokenType::IDENTIFIER)?;
         let id = self.previous.borrow().as_ref().unwrap().clone();
+
+        // we need to check that this isn't a redefinition
+        // in the same scope
+        let scope_depth = self.compiler.borrow().scope();
+        if scope_depth > 0 {
+            match self.compiler.borrow().resolve_in_scope(&id) {
+                Some(_) => {
+                    let scan_line = self.scanner.line();
+                    return Err(Box::new(ParserErr::new(
+                        format!("Can not redefine `{}` in the same scope", id),
+                        self.scanner.line_to_string(),
+                        scan_line.number,
+                        scan_line.offset,
+                    )));
+                }
+                None => {}
+            }
+        }
+
+        let scope = self.compiler.borrow_mut().add_local(&id, const_);
+
         if self.match_(TokenType::EQUAL)? {
             self.expression()?;
         } else {
             self.push(Constant::new(Value::Nil))?;
         }
+
         self.consume(TokenType::SEMICOLON)?;
-        self.push(Define::new(Scope::Global, format!("{}", id)))?;
+        self.push(Define::new(scope, format!("{}", id)))?;
+
+        // marks the new var as initialized
+        self.compiler.borrow().mark_latest_init();
+
         Ok(())
     }
 
@@ -366,13 +454,22 @@ impl<'a> Parser<'a> {
         if self.match_(TokenType::PRINT)? {
             return self.print();
         }
+        if self.match_(TokenType::LEFT_BRACE)? {
+            self.start_scope();
+            let res = self.block();
+            self.end_scope()?;
+            return res;
+        }
 
         self.expr_stmt()
     }
 
     fn declaration(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         if self.match_(TokenType::VAR)? {
-            return self.var_decl();
+            return self.var_decl(false);
+        }
+        if self.match_(TokenType::CONST)? {
+            return self.var_decl(true);
         }
         self.statement()
     }

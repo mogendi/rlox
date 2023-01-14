@@ -94,7 +94,6 @@ impl<'a> Scanner<'a> {
             start_index += 1;
         }
         let end_index = self.seek('\n', FORWARD, offset);
-        println!("SI: {}, EI: {}", start_index, end_index);
         String::from_utf8_lossy(&self.input_stream[start_index..=end_index]).to_string()
     }
 
@@ -150,6 +149,9 @@ impl<'a> Scanner<'a> {
 
     fn skip_whitespace(&self) {
         loop {
+            if self.input_stream.len() <= *self.current.borrow() {
+                break;
+            }
             let current_char = self.input_stream[*self.current.borrow()] as char;
             match current_char {
                 ' ' | '\t' | '\r' => {
@@ -189,7 +191,7 @@ impl<'a> Scanner<'a> {
 
     fn number(&'a self) -> Result<Token<'a>, Box<dyn ErrTrait>> {
         loop {
-            if Self::is_digit(self.peek_next()) && !self.is_at_end() {
+            if (Self::is_digit(self.peek_next()) || self.peek_next() == '.') && !self.is_at_end() {
                 self.advance();
             } else {
                 break;
@@ -228,11 +230,19 @@ impl<'a> Scanner<'a> {
     fn identifier(&'a self) -> Result<Token<'a>, Box<dyn ErrTrait>> {
         let token_type: TokenType = match self.peek() {
             'a' => self.check_keyword(2, &['a' as u8, 'n' as u8, 'd' as u8], TokenType::AND)?,
-            'c' => self.check_keyword(
-                4,
-                &['c' as u8, 'l' as u8, 'a' as u8, 's' as u8, 's' as u8],
-                TokenType::CLASS,
-            )?,
+            'c' => match self.peek_next() {
+                'l' => self.check_keyword(
+                    4,
+                    &['c' as u8, 'l' as u8, 'a' as u8, 's' as u8, 's' as u8],
+                    TokenType::CLASS,
+                )?,
+                'o' => self.check_keyword(
+                    4,
+                    &['c' as u8, 'o' as u8, 'n' as u8, 's' as u8, 't' as u8],
+                    TokenType::CONST,
+                )?,
+                _ => TokenType::IDENTIFIER,
+            },
             'e' => self.check_keyword(
                 3,
                 &['e' as u8, 'l' as u8, 's' as u8, 'e' as u8],
