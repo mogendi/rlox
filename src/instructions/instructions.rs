@@ -8,6 +8,7 @@ use crate::{errors::err::ErrTrait, vm::table::Table};
 
 use super::values::values::Value;
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum InstructionType {
     OP_RETURN,
@@ -20,6 +21,9 @@ pub enum InstructionType {
     OP_DEFINE,
     OP_RESOLVE,
     OP_OVERRIDE,
+    OP_JUMP,
+    OP_NONE,
+    OP_LOGIC,
 }
 
 impl Display for InstructionType {
@@ -34,7 +38,7 @@ pub trait InstructionBase {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>>;
+    ) -> Result<usize, Box<dyn ErrTrait>>;
 }
 
 pub trait Instruction: InstructionBase + Display + Debug {}
@@ -57,9 +61,9 @@ impl InstructionBase for Pop {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         stack.borrow_mut().pop();
-        Ok(())
+        Ok(0)
     }
 
     fn disassemble(&self) -> InstructionType {
@@ -94,14 +98,16 @@ impl PopN {
 }
 
 impl InstructionBase for PopN {
+    // returns either an error or a instruction
+    // pointer offset
     fn eval(
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         let n_actual = (*stack).borrow().len().saturating_sub(self.n);
         stack.borrow_mut().truncate(n_actual);
-        Ok(())
+        Ok(0)
     }
 
     fn disassemble(&self) -> InstructionType {
@@ -118,5 +124,43 @@ impl Debug for PopN {
 impl Display for PopN {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}       {}", self.code, self.n)
+    }
+}
+
+pub struct None {
+    code: InstructionType,
+}
+
+impl None {
+    pub fn new() -> Self {
+        None {
+            code: InstructionType::OP_NONE,
+        }
+    }
+}
+
+impl InstructionBase for None {
+    fn disassemble(&self) -> InstructionType {
+        self.code.clone()
+    }
+
+    fn eval(
+        &self,
+        _: Rc<RefCell<Vec<Value>>>,
+        _: Rc<RefCell<Table>>,
+    ) -> Result<usize, Box<dyn ErrTrait>> {
+        Ok(0)
+    }
+}
+
+impl Debug for None {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.code)
+    }
+}
+
+impl Display for None {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.code)
     }
 }

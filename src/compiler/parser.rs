@@ -10,7 +10,8 @@ use crate::{
         chunk::Chunk,
         constant::Constant,
         define::{Define, DefinitionScope, Override, Resolve},
-        instructions::{Instruction, Pop},
+        instructions::{Instruction, None, Pop},
+        jump::{ForceJump, Jump},
         print::Print,
         unary::{Unary, UnaryOp},
         values::values::Value,
@@ -267,6 +268,35 @@ impl<'a> Parser<'a> {
         self.push(Resolve::new(format!("{}", token), scope))
     }
 
+    pub fn or(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        let origin = self.chunk.borrow().code.len();
+        self.push(None::new())?;
+        self.push(Pop::new())?;
+
+        self.parse_expr(Precendence::Or)?;
+
+        let dest = self.chunk.borrow().code.len();
+        self.push(Jump::new(dest, false))?;
+
+        self.chunk.borrow_mut().swap_instructions(origin, dest)?;
+        Ok(())
+    }
+
+    pub fn and(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        let origin = self.chunk.borrow().code.len();
+        self.push(None::new())?;
+        self.push(Pop::new())?;
+
+        self.parse_expr(Precendence::And)?;
+
+        let dest = self.chunk.borrow().code.len();
+        self.push(Jump::new(dest, true))?;
+
+        self.chunk.borrow_mut().swap_instructions(origin, dest)?;
+
+        Ok(())
+    }
+
     pub fn unary(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         let token = self.get_previous()?;
         let op = match token.token_type {
@@ -450,6 +480,48 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn if_stmt(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::LEFT_PAREN)?;
+        self.expression()?;
+        self.consume(TokenType::RIGHT_PAREN)?;
+
+        // current instruction index + 1, where I expect the
+        // call to jump to be
+        let dest = self.chunk.borrow().code.len();
+        // creating a none instruction so we can swap the jump
+        // with something other than a valid instruction
+        self.push(None::new())?;
+
+        self.statement()?;
+
+        // just incase we do execute the if clause
+        // we need to force jump any possible else clause
+        let force_jump_dest = self.chunk.borrow().code.len();
+        self.push(None::new())?;
+
+        // create the jump instruction pointing to where
+        // the None instruction will eventually end up
+        // on the call stack
+        let origin = self.chunk.borrow().code.len();
+        self.push(Jump::new(origin, true))?;
+
+        //swap the None instruction with the jump instruction
+        self.chunk.borrow_mut().swap_instructions(origin, dest)?;
+
+        if self.match_(TokenType::ELSE)? {
+            self.statement()?;
+            // replicates the jump semantics for else
+            let origin = self.chunk.borrow().code.len();
+            self.push(ForceJump::new(origin))?;
+            self.chunk
+                .borrow_mut()
+                .swap_instructions(origin, force_jump_dest)?;
+        }
+
+        self.push(Pop::new())?;
+        Ok(())
+    }
+
     fn statement(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         if self.match_(TokenType::PRINT)? {
             return self.print();
@@ -470,6 +542,9 @@ impl<'a> Parser<'a> {
         }
         if self.match_(TokenType::CONST)? {
             return self.var_decl(true);
+        }
+        if self.match_(TokenType::IF)? {
+            return self.if_stmt();
         }
         self.statement()
     }

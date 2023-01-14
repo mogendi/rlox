@@ -4,6 +4,7 @@ pub mod constant;
 pub mod define;
 mod err;
 pub mod instructions;
+pub mod jump;
 pub mod print;
 pub mod return_inst;
 pub mod unary;

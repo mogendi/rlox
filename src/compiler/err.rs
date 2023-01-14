@@ -77,7 +77,7 @@ pub struct GroupErr {
 }
 
 impl GroupErr {
-    pub fn new(label: &'static str, message: String, errs: Vec<Box<dyn ErrTrait>>) -> Self {
+    pub fn _new(label: &'static str, message: String, errs: Vec<Box<dyn ErrTrait>>) -> Self {
         GroupErr {
             errs,
             message,

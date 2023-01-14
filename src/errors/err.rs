@@ -1,9 +1,5 @@
 use std::fmt::{Debug, Display};
 
-pub struct ErrPosition {
-    line: usize,
-}
-
 pub trait ErrTraitBase {
     fn raise(&self);
 }

@@ -1,0 +1,11 @@
+// should do nothing
+if (false) {
+    print "entered if";
+}
+
+// should print correct
+if (false) {
+    print "should not happen";
+} else {
+    print "Correct";
+}

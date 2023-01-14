@@ -12,6 +12,7 @@ pub struct VM<'a> {
     chunk: &'a Chunk,
     stack: Rc<RefCell<Vec<Value>>>,
     globals: Rc<RefCell<Table>>,
+    ip: usize,
 }
 
 impl<'a> VM<'a> {
@@ -20,6 +21,7 @@ impl<'a> VM<'a> {
             chunk,
             stack: Rc::new(RefCell::new(Vec::new())),
             globals: Rc::new(RefCell::new(Table::new())),
+            ip: 0,
         }
     }
 
@@ -35,9 +37,21 @@ impl<'a> VM<'a> {
         println!("\n\n====================================\n\n");
     }
 
-    pub fn run(&self) -> Result<(), Box<dyn ErrTrait>> {
-        for instruction in &self.chunk.code {
-            instruction.eval(self.stack.clone(), self.globals.clone())?;
+    pub fn run(&mut self) -> Result<(), Box<dyn ErrTrait>> {
+        let code_len = self.chunk.code.len();
+        if self.chunk.code.len() > 0 {
+            let mut offset = 0;
+            loop {
+                if self.ip >= code_len {
+                    break;
+                }
+                offset = self.chunk.code[self.ip].eval(self.stack.clone(), self.globals.clone())?;
+                if offset > 0 {
+                    self.ip = offset;
+                } else {
+                    self.ip += 1;
+                }
+            }
         }
         self.dump_stack();
         Ok(())

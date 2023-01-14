@@ -47,7 +47,7 @@ impl InstructionBase for Unary {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         let operand = stack.borrow_mut().pop().unwrap();
         match self.op {
             UnaryOp::Negate => match operand {
@@ -65,7 +65,7 @@ impl InstructionBase for Unary {
                 stack.borrow_mut().push(Value::Bool(!operand.truthy()?));
             }
         }
-        Ok(())
+        Ok(0)
     }
 
     fn disassemble(&self) -> InstructionType {

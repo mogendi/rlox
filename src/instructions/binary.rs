@@ -173,7 +173,7 @@ impl InstructionBase for Binary {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         let right = stack.borrow_mut().pop().unwrap();
         let left = stack.borrow_mut().pop().unwrap();
         let res = match self.op {
@@ -186,7 +186,7 @@ impl InstructionBase for Binary {
             BinaryOp::LESS => self.eval_less(left, right)?,
         };
         stack.borrow_mut().push(res.clone());
-        Ok(())
+        Ok(0)
     }
 
     fn disassemble(&self) -> InstructionType {

@@ -1,0 +1,4 @@
+print true and false;
+print true and true;
+print false or false;
+print false or true;

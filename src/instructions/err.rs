@@ -42,3 +42,32 @@ impl Debug for InstructionErr {
         )
     }
 }
+
+pub struct ChunkErr {
+    line: usize,
+    message: String,
+}
+
+impl ChunkErr {
+    pub fn new(message: String, line: usize) -> Self {
+        ChunkErr { line, message }
+    }
+}
+
+impl ErrTraitBase for ChunkErr {
+    fn raise(&self) {
+        println!("Chunk processing err @ Line 1:: {}", self.message)
+    }
+}
+
+impl Display for ChunkErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Chunk Err:: {}", self.message)
+    }
+}
+
+impl Debug for ChunkErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Chunk Err:: {}", self.message)
+    }
+}

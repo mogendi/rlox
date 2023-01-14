@@ -2,7 +2,10 @@ use std::fmt::{Debug, Display};
 
 use crate::errors::err::ErrTrait;
 
-use super::instructions::{Instruction, InstructionType};
+use super::{
+    err::ChunkErr,
+    instructions::{Instruction, InstructionType},
+};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -41,6 +44,25 @@ impl Chunk {
         }
         instructions
     }
+
+    pub fn swap_instructions(
+        &mut self,
+        origin: usize,
+        dest: usize,
+    ) -> Result<(), Box<dyn ErrTrait>> {
+        let limit = self.code.len() - 1;
+        if origin > limit || dest > limit {
+            return Err(Box::new(ChunkErr::new(
+                format!(
+                    "instruction swap failed for the bounds: {} < --- > {}.\nChunk dump: {}",
+                    origin, dest, self
+                ),
+                self.lines.pop().unwrap_or(0),
+            )));
+        }
+        self.code.swap(origin, dest);
+        Ok(())
+    }
 }
 
 impl Display for Chunk {
@@ -70,7 +92,7 @@ mod tests {
     #[allow(unused_must_use)]
     fn test_disassemble() {
         let mut chunk = Chunk::new();
-        chunk.write_to_chunk(Box::new(Return::new()), 1);
+        chunk.write_to_chunk(Box::new(Return::_new()), 1);
         let insts = chunk.disassemble();
         assert_eq!(insts, vec![InstructionType::OP_RETURN]);
     }
@@ -81,7 +103,7 @@ mod tests {
         chunk
             .write_to_chunk(Box::new(Constant::new(Value::Number(1.0))), 1)
             .unwrap();
-        chunk.write_to_chunk(Box::new(Return::new()), 1).unwrap();
+        chunk.write_to_chunk(Box::new(Return::_new()), 1).unwrap();
         assert_eq!(format!("{}", chunk), "1  OP_CONST       1\n|  OP_RETURN\n");
         print!("{}", chunk);
     }

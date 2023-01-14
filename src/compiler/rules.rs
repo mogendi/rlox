@@ -198,8 +198,8 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
 
         TokenType::AND => ParseRule {
             prefix: None,
-            infix: None,
-            precedence: Precendence::None,
+            infix: Some(Box::new(|parser| parser.and())),
+            precedence: Precendence::And,
         },
 
         TokenType::CLASS => ParseRule {
@@ -246,8 +246,8 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
 
         TokenType::OR => ParseRule {
             prefix: None,
-            infix: None,
-            precedence: Precendence::None,
+            infix: Some(Box::new(|parser| parser.or())),
+            precedence: Precendence::Or,
         },
 
         TokenType::PRINT => ParseRule {

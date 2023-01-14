@@ -1,4 +1,4 @@
-use crate::errors::err::{ErrTrait, ErrTraitBase};
+use crate::errors::err::ErrTraitBase;
 
 pub struct RuntimeErr {}
 

@@ -107,57 +107,6 @@ impl Display for TokenType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Literal {
-    Number(f64),
-    String(String),
-    Eof,
-    Identifier(String),
-    Keyword(String),
-    BlockMarker(String),
-    Op(String),
-    Nil,
-    Bool(bool),
-}
-
-impl Literal {
-    pub fn truthy(&self) -> Result<bool, &str> {
-        match self {
-            Literal::Number(val) => return Ok(!(*val == 0.0)),
-            Literal::String(_) => return Ok(true),
-            Literal::Identifier(_) => {
-                todo!()
-            }
-            Literal::Nil => return Ok(false),
-            Literal::Bool(val) => return Ok(*val),
-            _ => Err("Can not evaluate truthyness for the given  value"),
-        }
-    }
-
-    pub fn is_truthy(&self) -> bool {
-        match self.truthy() {
-            Ok(val) => return val,
-            Err(_) => false,
-        }
-    }
-}
-
-impl Display for Literal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Literal::Number(val) => write!(f, "{}", val),
-            Literal::Eof => write!(f, "eof"),
-            Literal::Nil => write!(f, "nil"),
-            Literal::Bool(val) => write!(f, "{}", val),
-            Literal::String(val)
-            | Literal::Identifier(val)
-            | Literal::Keyword(val)
-            | Literal::BlockMarker(val)
-            | Literal::Op(val) => write!(f, "{}", val),
-        }
-    }
-}
-
 #[derive(PartialEq, Clone)]
 pub struct Token<'a> {
     pub(super) token_type: TokenType,

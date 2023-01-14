@@ -50,6 +50,9 @@ impl<'a> Compiler<'a> {
         self.scope_depth -= 1;
         let pre_drop_len = self.locals_count;
         loop {
+            if self.locals_count == 0 {
+                break;
+            }
             if self.scope_depth <= (*self.locals).borrow()[self.locals_count - 1].depth {
                 break;
             }

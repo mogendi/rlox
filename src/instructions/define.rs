@@ -39,7 +39,7 @@ impl InstructionBase for Define {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         table: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         match self.scope {
             DefinitionScope::Global => {
                 let current_stack_index = || {
@@ -55,7 +55,7 @@ impl InstructionBase for Define {
             }
             DefinitionScope::Local(_) => {}
         }
-        Ok(())
+        Ok(0)
     }
 
     fn disassemble(&self) -> InstructionType {
@@ -100,7 +100,7 @@ impl InstructionBase for Resolve {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         match self.scope {
             DefinitionScope::Global => match (*env).borrow().resolve(&self.identifier) {
                 Some(val) => {
@@ -118,7 +118,7 @@ impl InstructionBase for Resolve {
                 stack.borrow_mut().push(val);
             }
         }
-        Ok(())
+        Ok(0)
     }
 }
 
@@ -163,7 +163,7 @@ impl InstructionBase for Override {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
+    ) -> Result<usize, Box<dyn ErrTrait>> {
         let val = stack.borrow_mut().pop().unwrap();
         match self.scope {
             DefinitionScope::Global => {
@@ -182,7 +182,7 @@ impl InstructionBase for Override {
                 (*stack).borrow_mut()[stack_idx] = val;
             }
         }
-        Ok(())
+        Ok(0)
     }
 }
 

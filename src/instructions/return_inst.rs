@@ -17,7 +17,7 @@ pub struct Return {
 }
 
 impl Return {
-    pub fn new() -> Self {
+    pub fn _new() -> Self {
         Return {
             code: InstructionType::OP_RETURN,
         }
@@ -29,8 +29,8 @@ impl InstructionBase for Return {
         &self,
         _: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
-    ) -> Result<(), Box<dyn ErrTrait>> {
-        Ok(())
+    ) -> Result<usize, Box<dyn ErrTrait>> {
+        Ok(0)
     }
 
     fn disassemble(&self) -> InstructionType {
