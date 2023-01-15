@@ -56,7 +56,10 @@ impl ChunkErr {
 
 impl ErrTraitBase for ChunkErr {
     fn raise(&self) {
-        println!("Chunk processing err @ Line 1:: {}", self.message)
+        println!(
+            "Chunk processing err @ Line {}:: {}",
+            self.line, self.message
+        )
     }
 }
 

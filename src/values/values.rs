@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use crate::errors::err::ErrTrait;
 
-use super::super::err::InstructionErr;
+use super::err::ValueErr;
 
 #[derive(PartialEq, Clone)]
 pub enum Value {
@@ -19,7 +19,7 @@ impl Value {
             Value::String(_) => return Ok(true),
             Value::Nil => return Ok(false),
             Value::Bool(val) => return Ok(*val),
-            _ => Err(Box::new(InstructionErr::new(
+            _ => Err(Box::new(ValueErr::new(
                 format!("{} can't be coerced into a boolean value", self),
                 format!("{}", self),
             ))),
