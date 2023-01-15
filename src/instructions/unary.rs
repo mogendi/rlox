@@ -4,12 +4,11 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, vm::table::Table};
+use crate::{errors::err::ErrTrait, values::values::Value, vm::table::Table};
 
 use super::{
     err::InstructionErr,
     instructions::{InstructionBase, InstructionType},
-    values::values::Value,
 };
 
 #[derive(Debug)]

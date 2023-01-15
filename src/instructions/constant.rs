@@ -4,12 +4,9 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, vm::table::Table};
+use crate::{errors::err::ErrTrait, values::values::Value, vm::table::Table};
 
-use super::{
-    instructions::{InstructionBase, InstructionType},
-    values::values::Value,
-};
+use super::instructions::{InstructionBase, InstructionType};
 
 #[derive(Debug)]
 pub struct Constant {

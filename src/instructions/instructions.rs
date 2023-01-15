@@ -6,7 +6,7 @@ use std::{
 
 use crate::{errors::err::ErrTrait, vm::table::Table};
 
-use super::values::values::Value;
+use crate::values::values::Value;
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Clone)]

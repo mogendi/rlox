@@ -1,9 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    compiler::compiler::Compiler,
-    errors::err::ErrTrait,
-    instructions::{chunk::Chunk, values::values::Value},
+    compiler::compiler::Compiler, errors::err::ErrTrait, instructions::chunk::Chunk,
+    values::values::Value,
 };
 
 use super::table::Table;

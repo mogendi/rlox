@@ -14,8 +14,8 @@ use crate::{
         jump::{ForceJump, Jump},
         print::Print,
         unary::{Unary, UnaryOp},
-        values::values::Value,
     },
+    values::values::Value,
 };
 
 use super::{
@@ -220,7 +220,7 @@ impl<'a> Parser<'a> {
         let is_const = self.compiler.borrow().check_const_from_token(&token);
         let scope = match self.compiler.borrow().resolve(&token) {
             Some(scope_val) => scope_val,
-            None =>  {
+            None => {
                 let scan_line = self.scanner.line();
                 return Err(Box::new(ParserErr::new(
                     format!(
@@ -555,7 +555,9 @@ impl<'a> Parser<'a> {
         // co-ordinates skipping over the incr expr
         let body_start_pos = self.chunk.borrow().code.len();
         self.push(ForceJump::new(body_start_pos))?;
-        self.chunk.borrow_mut().swap_instructions(force_jump_pos, body_start_pos)?;
+        self.chunk
+            .borrow_mut()
+            .swap_instructions(force_jump_pos, body_start_pos)?;
 
         self.statement()?;
 
@@ -565,7 +567,9 @@ impl<'a> Parser<'a> {
         // condition jump for the loop break
         let post_for_clause = self.chunk.borrow().code.len();
         self.push(Jump::new(post_for_clause, true))?;
-        self.chunk.borrow_mut().swap_instructions(pre_expr_pos, post_for_clause)?;
+        self.chunk
+            .borrow_mut()
+            .swap_instructions(pre_expr_pos, post_for_clause)?;
 
         self.push(Pop::new())?;
         Ok(())

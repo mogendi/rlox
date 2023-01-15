@@ -93,7 +93,7 @@ impl<'a> Compiler<'a> {
                 }
                 match local.depth {
                     0 => return Some(DefinitionScope::Global),
-                    _ => return Some(DefinitionScope::Local(idx))
+                    _ => return Some(DefinitionScope::Local(idx)),
                 }
             }
         }
@@ -110,7 +110,7 @@ impl<'a> Compiler<'a> {
                 if local.uninit {
                     return None;
                 }
-                return Some(idx)
+                return Some(idx);
             }
         }
         None

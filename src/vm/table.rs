@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use crate::instructions::values::values::Value;
+use crate::values::values::Value;
 
 pub struct Table {
     vars: HashMap<String, Value>,

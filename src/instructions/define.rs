@@ -4,12 +4,11 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, vm::table::Table};
+use crate::{errors::err::ErrTrait, values::values::Value, vm::table::Table};
 
 use super::{
     err::InstructionErr,
     instructions::{InstructionBase, InstructionType},
-    values::values::Value,
 };
 
 #[derive(Debug)]
@@ -194,6 +193,10 @@ impl Debug for Override {
 
 impl Display for Override {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} @{:?}      {}", self.code, self.scope, self.identifier)
+        write!(
+            f,
+            "{:?} @{:?}      {}",
+            self.code, self.scope, self.identifier
+        )
     }
 }

@@ -6,6 +6,7 @@ mod compiler;
 mod errors;
 mod instructions;
 mod runners;
+mod values;
 mod vm;
 
 fn main() {
