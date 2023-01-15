@@ -164,7 +164,8 @@ impl InstructionBase for Override {
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
     ) -> Result<usize, Box<dyn ErrTrait>> {
-        let val = stack.borrow_mut().pop().unwrap();
+        let top_of_stack = stack.borrow().len() - 1;
+        let val = stack.borrow_mut()[top_of_stack].clone();
         match self.scope {
             DefinitionScope::Global => {
                 match (*env).borrow_mut().override_(self.identifier.clone(), val) {
@@ -178,7 +179,6 @@ impl InstructionBase for Override {
                 }
             }
             DefinitionScope::Local(stack_idx) => {
-                let val = stack.borrow_mut().pop().unwrap();
                 (*stack).borrow_mut()[stack_idx] = val;
             }
         }
@@ -188,12 +188,12 @@ impl InstructionBase for Override {
 
 impl Debug for Override {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Override {}>", self.identifier)
+        write!(f, "<Override @{:?} {}>", self.scope, self.identifier)
     }
 }
 
 impl Display for Override {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}       {}", self.code, self.identifier)
+        write!(f, "{:?} @{:?}      {}", self.code, self.scope, self.identifier)
     }
 }

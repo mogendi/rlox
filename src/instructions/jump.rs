@@ -14,15 +14,15 @@ use super::{
 pub struct Jump {
     code: InstructionType,
     to: usize,
-    jump_condition: bool,
+    continue_condition: bool,
 }
 
 impl Jump {
-    pub fn new(to: usize, jump_condition: bool) -> Self {
+    pub fn new(to: usize, continue_condition: bool) -> Self {
         Jump {
             code: InstructionType::OP_JUMP,
             to,
-            jump_condition,
+            continue_condition,
         }
     }
 }
@@ -39,7 +39,7 @@ impl InstructionBase for Jump {
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let idx = stack.borrow().len() - 1;
         let expr_res = stack.borrow_mut()[idx].truthy()?;
-        if expr_res == self.jump_condition {
+        if expr_res == self.continue_condition {
             return Ok(0);
         }
         Ok(self.to)
@@ -51,7 +51,7 @@ impl Debug for Jump {
         write!(
             f,
             "{:?} to {} if {}",
-            self.code, self.to, !self.jump_condition
+            self.code, self.to, !self.continue_condition
         )
     }
 }
@@ -61,7 +61,7 @@ impl Display for Jump {
         write!(
             f,
             "{:?}_IF_{}       {}",
-            self.code, !self.jump_condition, self.to
+            self.code, !self.continue_condition, self.to
         )
     }
 }

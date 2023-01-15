@@ -81,7 +81,7 @@ impl<'a> Compiler<'a> {
         self.scope_depth
     }
 
-    pub fn resolve(&self, ident: &Token) -> Option<usize> {
+    pub fn resolve(&self, ident: &Token) -> Option<DefinitionScope> {
         if self.locals_count == 0 {
             return None;
         }
@@ -91,7 +91,26 @@ impl<'a> Compiler<'a> {
                 if local.uninit {
                     return None;
                 }
-                return Some(idx);
+                match local.depth {
+                    0 => return Some(DefinitionScope::Global),
+                    _ => return Some(DefinitionScope::Local(idx))
+                }
+            }
+        }
+        None
+    }
+
+    fn resolve_idx(&self, ident: &Token) -> Option<usize> {
+        if self.locals_count == 0 {
+            return None;
+        }
+        let ident_str = format!("{}", ident);
+        for (idx, local) in (*self.locals).borrow().iter().rev().enumerate() {
+            if format!("{}", local.name) == ident_str {
+                if local.uninit {
+                    return None;
+                }
+                return Some(idx)
             }
         }
         None
@@ -102,7 +121,7 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn check_const_from_token(&self, ident: &Token) -> bool {
-        match self.resolve(ident) {
+        match self.resolve_idx(ident) {
             Some(idx) => self.check_const(idx),
             None => false,
         }

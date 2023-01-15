@@ -9,7 +9,7 @@ use crate::{
         binary::{Binary, BinaryOp},
         chunk::Chunk,
         constant::Constant,
-        define::{Define, DefinitionScope, Override, Resolve},
+        define::{Define, Override, Resolve},
         instructions::{Instruction, None, Pop},
         jump::{ForceJump, Jump},
         print::Print,
@@ -217,25 +217,21 @@ impl<'a> Parser<'a> {
 
         // we need to find the relvant scope for the identifier before we
         // build any instructions
-        let depth = self.compiler.borrow().scope();
         let is_const = self.compiler.borrow().check_const_from_token(&token);
-        let scope = match depth {
-            0 => DefinitionScope::Global,
-            _ => match self.compiler.borrow().resolve(&token) {
-                Some(val) => DefinitionScope::Local(val),
-                None => {
-                    let scan_line = self.scanner.line();
-                    return Err(Box::new(ParserErr::new(
-                        format!(
-                            "Can not access or overwrite undefined variable: `{}`",
-                            token
-                        ),
-                        self.scanner.line_to_string(),
-                        scan_line.number,
-                        scan_line.offset,
-                    )));
-                }
-            },
+        let scope = match self.compiler.borrow().resolve(&token) {
+            Some(scope_val) => scope_val,
+            None =>  {
+                let scan_line = self.scanner.line();
+                return Err(Box::new(ParserErr::new(
+                    format!(
+                        "Can not access or overwrite undefined variable: `{}`",
+                        token
+                    ),
+                    self.scanner.line_to_string(),
+                    scan_line.number,
+                    scan_line.offset,
+                )));
+            }
         };
 
         let match_ = self.match_(TokenType::EQUAL)?;
@@ -522,6 +518,84 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    /// Syntactic sugar for while loops
+    /// Its strictly a for(decl/assignment; cond: incr)
+    /// format, if for(;;) or any other variation is needed
+    /// use while
+    fn for_stmt(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        // the initial decl/assignment section
+        self.consume(TokenType::LEFT_PAREN)?;
+        if self.match_(TokenType::VAR)? {
+            self.var_decl(false)?;
+        } else {
+            self.expr_stmt()?;
+        }
+
+        let jump_position = self.chunk.borrow().code.len();
+
+        // the loop condition
+        self.expression()?;
+        self.consume(TokenType::SEMICOLON)?;
+
+        let pre_expr_pos = self.chunk.borrow().code.len();
+        self.push(None::new())?;
+        self.push(Pop::new())?;
+        let force_jump_pos = self.chunk.borrow().code.len();
+        self.push(None::new())?;
+
+        // the loop incr
+        let pre_incr_pos = self.chunk.borrow().code.len();
+        self.expression()?;
+        self.consume(TokenType::RIGHT_PAREN)?;
+
+        self.push(Pop::new())?;
+        // jumps back to check the condition
+        self.push(ForceJump::new(jump_position))?;
+
+        // co-ordinates skipping over the incr expr
+        let body_start_pos = self.chunk.borrow().code.len();
+        self.push(ForceJump::new(body_start_pos))?;
+        self.chunk.borrow_mut().swap_instructions(force_jump_pos, body_start_pos)?;
+
+        self.statement()?;
+
+        // jumps back to the incr after the body
+        self.push(ForceJump::new(pre_incr_pos))?;
+
+        // condition jump for the loop break
+        let post_for_clause = self.chunk.borrow().code.len();
+        self.push(Jump::new(post_for_clause, true))?;
+        self.chunk.borrow_mut().swap_instructions(pre_expr_pos, post_for_clause)?;
+
+        self.push(Pop::new())?;
+        Ok(())
+    }
+
+    fn while_stmt(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        let jump_position = self.chunk.borrow().code.len();
+
+        self.consume(TokenType::LEFT_PAREN)?;
+        self.expression()?;
+        self.consume(TokenType::RIGHT_PAREN)?;
+
+        let origin = self.chunk.borrow().code.len();
+        self.push(None::new())?;
+        self.push(Pop::new())?;
+
+        self.statement()?;
+
+        // jump position can be pre-determined so we don't need to swap
+        // with a none
+        self.push(ForceJump::new(jump_position))?;
+
+        let dest = self.chunk.borrow().code.len();
+        self.push(Jump::new(dest, true))?;
+        self.chunk.borrow_mut().swap_instructions(origin, dest)?;
+
+        self.push(Pop::new())?;
+        Ok(())
+    }
+
     fn statement(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         if self.match_(TokenType::PRINT)? {
             return self.print();
@@ -545,6 +619,12 @@ impl<'a> Parser<'a> {
         }
         if self.match_(TokenType::IF)? {
             return self.if_stmt();
+        }
+        if self.match_(TokenType::WHILE)? {
+            return self.while_stmt();
+        }
+        if self.match_(TokenType::FOR)? {
+            return self.for_stmt();
         }
         self.statement()
     }

@@ -25,22 +25,24 @@ impl<'a> VM<'a> {
         }
     }
 
+    fn dump_globals(&self) {
+        println!("\n\n============== Globals =============\n\n");
+        print!("{}", (*self.globals).borrow());
+        println!("\n\n====================================\n\n");
+    }
+
     fn dump_stack(&self) {
         println!("\n\n============== Stack =============\n\n");
         for value in (*self.stack).borrow().iter() {
             print!("[{}]", value);
         }
         println!("\n\n==================================\n\n");
-
-        println!("\n\n============== Globals =============\n\n");
-        print!("{}", (*self.globals).borrow());
-        println!("\n\n====================================\n\n");
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn ErrTrait>> {
         let code_len = self.chunk.code.len();
         if self.chunk.code.len() > 0 {
-            let mut offset = 0;
+            let mut offset;
             loop {
                 if self.ip >= code_len {
                     break;
@@ -52,8 +54,9 @@ impl<'a> VM<'a> {
                     self.ip += 1;
                 }
             }
+            self.dump_stack();
+            self.dump_globals();
         }
-        self.dump_stack();
         Ok(())
     }
 
