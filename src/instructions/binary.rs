@@ -172,6 +172,8 @@ impl InstructionBase for Binary {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let right = stack.borrow_mut().pop().unwrap();
         let left = stack.borrow_mut().pop().unwrap();

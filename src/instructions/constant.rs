@@ -28,6 +28,8 @@ impl InstructionBase for Constant {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         stack.borrow_mut().push(self.operand.clone());
         Ok(0)

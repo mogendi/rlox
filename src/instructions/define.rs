@@ -38,6 +38,8 @@ impl InstructionBase for Define {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         table: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         match self.scope {
             DefinitionScope::Global => {
@@ -99,6 +101,8 @@ impl InstructionBase for Resolve {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        offset: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         match self.scope {
             DefinitionScope::Global => match (*env).borrow().resolve(&self.identifier) {
@@ -113,7 +117,7 @@ impl InstructionBase for Resolve {
                 }
             },
             DefinitionScope::Local(stack_idx) => {
-                let val = stack.borrow()[stack_idx].clone();
+                let val = stack.borrow()[stack_idx.saturating_add(offset)].clone();
                 stack.borrow_mut().push(val);
             }
         }
@@ -162,6 +166,8 @@ impl InstructionBase for Override {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let top_of_stack = stack.borrow().len() - 1;
         let val = stack.borrow_mut()[top_of_stack].clone();

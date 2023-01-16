@@ -1,3 +1,3 @@
 mod err;
-pub mod obj;
+pub mod func;
 pub mod values;

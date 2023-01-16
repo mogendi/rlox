@@ -6,6 +6,7 @@ while (a > 1) {
 
 print a;
 
-for (var a = 10; a > 0; a = a - 1) {
-    print a;
+for (a = 10; a > 0; a = a - 1) {
+    var b = 3;
+    print a + b;
 }

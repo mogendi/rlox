@@ -23,7 +23,6 @@ pub enum InstructionType {
     OP_OVERRIDE,
     OP_JUMP,
     OP_NONE,
-    OP_LOGIC,
 }
 
 impl Display for InstructionType {
@@ -38,6 +37,8 @@ pub trait InstructionBase {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
+        call_frame: Rc<RefCell<Vec<String>>>,
+        offset: usize,
     ) -> Result<usize, Box<dyn ErrTrait>>;
 }
 
@@ -61,6 +62,8 @@ impl InstructionBase for Pop {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         stack.borrow_mut().pop();
         Ok(0)
@@ -104,6 +107,8 @@ impl InstructionBase for PopN {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let n_actual = (*stack).borrow().len().saturating_sub(self.n);
         stack.borrow_mut().truncate(n_actual);
@@ -148,6 +153,8 @@ impl InstructionBase for None {
         &self,
         _: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         Ok(0)
     }

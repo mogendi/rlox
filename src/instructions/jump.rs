@@ -33,6 +33,8 @@ impl InstructionBase for Jump {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let idx = stack.borrow().len() - 1;
         let expr_res = stack.borrow_mut()[idx].truthy()?;
@@ -86,6 +88,8 @@ impl InstructionBase for ForceJump {
         &self,
         _: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         Ok(self.to)
     }

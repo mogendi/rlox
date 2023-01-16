@@ -4,13 +4,20 @@ use crate::{
     compiler::{parser::Parser, scanner::Scanner},
     errors::err::ErrTrait,
     instructions::{chunk::Chunk, define::DefinitionScope, instructions::PopN},
+    values::func::Func,
 };
 
 use super::token::Token;
 
+#[derive(Debug, Clone)]
+pub enum FunctionType {
+    Script,
+    Function(String),
+}
+
 #[derive(Debug)]
 pub struct Local<'a> {
-    name: Token<'a>,
+    pub name: Token<'a>,
     pub depth: usize,
     uninit: bool,
     const_: bool,
@@ -20,21 +27,26 @@ pub struct Compiler<'a> {
     locals: Rc<RefCell<Vec<Local<'a>>>>,
     locals_count: usize,
     scope_depth: usize,
+    type_: FunctionType,
 }
 
 impl<'a> Compiler<'a> {
-    pub fn compile(src: Vec<u8>) -> Result<Chunk, Box<dyn ErrTrait>> {
+    pub fn compile(src: Vec<u8>, type_: FunctionType) -> Result<Func, Box<dyn ErrTrait>> {
         let mut compiler = Compiler {
             locals: Rc::new(RefCell::new(Vec::new())),
             locals_count: 0,
             scope_depth: 0,
+            type_: type_.clone(),
         };
         let scanner = Scanner::new(src);
         let mut chunk = Chunk::new();
         let parser = Parser::new(&scanner, &mut chunk, &mut compiler)?;
         parser.parse()?;
         print!("{}", parser);
-        Ok(chunk)
+        match type_ {
+            FunctionType::Script => Ok(Func::new("__main__".to_string(), chunk)),
+            FunctionType::Function(name) => Ok(Func::new(name, chunk)),
+        }
     }
 
     pub fn start_scope(&mut self) -> usize {
@@ -48,22 +60,29 @@ impl<'a> Compiler<'a> {
         line: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         self.scope_depth -= 1;
-        let pre_drop_len = self.locals_count;
+        let mut pop_count: usize = 0;
         loop {
             if self.locals_count == 0 {
                 break;
             }
-            if self.scope_depth <= (*self.locals).borrow()[self.locals_count - 1].depth {
+            if self.scope_depth + 1 != (*self.locals).borrow()[self.locals_count - 1].depth {
                 break;
             }
+            println!(
+                "dropping {} from scope {}",
+                (*self.locals).borrow()[self.locals_count - 1].name,
+                self.scope_depth
+            );
             (*self.locals).borrow_mut().pop();
             self.locals_count -= 1;
+            pop_count += 1;
         }
-        chunk.write_to_chunk(Box::new(PopN::new(pre_drop_len - self.locals_count)), line)?;
+        chunk.write_to_chunk(Box::new(PopN::new(pop_count)), line)?;
         Ok(self.scope_depth)
     }
 
     pub fn add_local<'b>(&mut self, local: &'b Token<'a>, const_: bool) -> DefinitionScope {
+        println!("Adding {} to scope {}", local, self.scope_depth);
         (*self.locals).borrow_mut().push(Local {
             name: local.clone(),
             depth: self.scope_depth,

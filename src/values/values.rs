@@ -1,8 +1,11 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    rc::Rc,
+};
 
 use crate::errors::err::ErrTrait;
 
-use super::err::ValueErr;
+use super::{err::ValueErr, func::Func};
 
 #[derive(PartialEq, Clone)]
 pub enum Value {
@@ -10,6 +13,7 @@ pub enum Value {
     String(String),
     Nil,
     Bool(bool),
+    Func(Rc<Func>),
 }
 
 impl Value {
@@ -37,6 +41,7 @@ impl Debug for Value {
                 false => format!("<Boolean {}>", String::from("false")),
             },
             Value::String(val) => format!("<String {}>", val.to_owned()),
+            Value::Func(func) => format!("<Fun {}>", (*func).name()),
         };
 
         write!(f, "{}", str)
@@ -53,6 +58,7 @@ impl Display for Value {
                 false => String::from("false"),
             },
             Value::String(val) => val.to_owned(),
+            Value::Func(func) => format!("<Fun {}>", (*func).name()),
         };
 
         write!(f, "{}", str)

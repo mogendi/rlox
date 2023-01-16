@@ -46,6 +46,8 @@ impl InstructionBase for Unary {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let operand = stack.borrow_mut().pop().unwrap();
         match self.op {

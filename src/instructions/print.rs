@@ -25,6 +25,8 @@ impl InstructionBase for Print {
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         println!("{}", stack.borrow_mut().pop().unwrap());
         Ok(0)
