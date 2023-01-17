@@ -14,7 +14,7 @@ pub struct Return {
 }
 
 impl Return {
-    pub fn _new() -> Self {
+    pub fn new() -> Self {
         Return {
             code: InstructionType::OP_RETURN,
         }
@@ -26,9 +26,10 @@ impl InstructionBase for Return {
         &self,
         _: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
-        _: Rc<RefCell<Vec<String>>>,
+        call_frame: Rc<RefCell<Vec<String>>>,
         _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
+        (*call_frame).borrow_mut().pop();
         Ok(0)
     }
 

@@ -5,7 +5,10 @@ use std::{
 
 use crate::errors::err::ErrTrait;
 
-use super::{err::ValueErr, func::Func};
+use super::{
+    err::ValueErr,
+    func::{Func, Native},
+};
 
 #[derive(PartialEq, Clone)]
 pub enum Value {
@@ -14,6 +17,7 @@ pub enum Value {
     Nil,
     Bool(bool),
     Func(Rc<Func>),
+    Native(Rc<Native>),
 }
 
 impl Value {
@@ -42,6 +46,7 @@ impl Debug for Value {
             },
             Value::String(val) => format!("<String {}>", val.to_owned()),
             Value::Func(func) => format!("<Fun {}>", (*func).name()),
+            Value::Native(func) => format!("<Native Fun {}>", (*func).name()),
         };
 
         write!(f, "{}", str)
@@ -59,6 +64,7 @@ impl Display for Value {
             },
             Value::String(val) => val.to_owned(),
             Value::Func(func) => format!("<Fun {}>", (*func).name()),
+            Value::Native(func) => format!("<Native Fun {}>", (*func).name()),
         };
 
         write!(f, "{}", str)

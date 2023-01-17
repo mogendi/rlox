@@ -23,6 +23,7 @@ pub enum InstructionType {
     OP_OVERRIDE,
     OP_JUMP,
     OP_NONE,
+    OP_CALL,
 }
 
 impl Display for InstructionType {

@@ -6,7 +6,7 @@ use crate::{
     values::{func::Func, values::Value},
 };
 
-use super::table::Table;
+use super::{natives::load_natives, table::Table};
 
 pub struct VM<'a> {
     // implicit main
@@ -17,31 +17,47 @@ pub struct VM<'a> {
 }
 
 impl<'a> VM<'a> {
-    pub fn new(func: &'a Func) -> Self {
+    pub fn new(func: &'a Func, globals: Rc<RefCell<Table>>) -> Self {
         VM {
             func,
             frames: Rc::new(RefCell::new(Vec::new())),
             stack: Rc::new(RefCell::new(Vec::new())),
-            globals: Rc::new(RefCell::new(Table::new())),
+            globals,
         }
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn ErrTrait>> {
-        self.func.call(
+        match self.func.call(
             self.stack.clone(),
             self.globals.clone(),
             self.frames.clone(),
             0,
-        )?;
+        ) {
+            Ok(_) => {}
+            Err(err) => {
+                err.raise();
+                println!("\nStack Trace: ");
+                println!("-----------------");
+                for func in (*self.frames).borrow().iter().rev() {
+                    println!("<Fun {}>", func);
+                }
+            }
+        }
         Ok(())
     }
 
-    pub fn compile<'b>(src: Vec<u8>) -> Result<Func, Box<dyn ErrTrait>> {
-        Compiler::compile(src, FunctionType::Script)
+    pub fn compile<'b>(
+        src: Vec<u8>,
+        globals: Rc<RefCell<Table>>,
+    ) -> Result<Func, Box<dyn ErrTrait>> {
+        Compiler::compile(src, FunctionType::Script, globals)
     }
 
     pub fn interprate(src: Vec<u8>) -> Result<(), Box<dyn ErrTrait>> {
-        VM::new(&VM::compile(src)?).run()?;
+        let globals = Rc::new(RefCell::new(Table::new()));
+        load_natives(globals.clone());
+        let __main__ = VM::compile(src, globals.clone())?;
+        VM::new(&__main__, globals).run()?;
         Ok(())
     }
 }

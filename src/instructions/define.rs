@@ -167,7 +167,7 @@ impl InstructionBase for Override {
         stack: Rc<RefCell<Vec<Value>>>,
         env: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
-        _: usize,
+        offset: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let top_of_stack = stack.borrow().len() - 1;
         let val = stack.borrow_mut()[top_of_stack].clone();
@@ -184,7 +184,7 @@ impl InstructionBase for Override {
                 }
             }
             DefinitionScope::Local(stack_idx) => {
-                (*stack).borrow_mut()[stack_idx] = val;
+                (*stack).borrow_mut()[stack_idx.saturating_add(offset)] = val;
             }
         }
         Ok(0)

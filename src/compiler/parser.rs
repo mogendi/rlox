@@ -1,25 +1,28 @@
 use std::{
     cell::RefCell,
     fmt::{Debug, Display},
+    rc::Rc,
 };
 
 use crate::{
     errors::err::ErrTrait,
     instructions::{
         binary::{Binary, BinaryOp},
+        call::Call,
         chunk::Chunk,
         constant::Constant,
-        define::{Define, Override, Resolve},
+        define::{Define, DefinitionScope, Override, Resolve},
         instructions::{Instruction, None, Pop},
         jump::{ForceJump, Jump},
         print::Print,
+        return_inst::Return,
         unary::{Unary, UnaryOp},
     },
     values::values::Value,
 };
 
 use super::{
-    compiler::Compiler,
+    compiler::{Compiler, FunctionType},
     err::ParserErr,
     rules::{construct_rule, Precendence},
     scanner::Scanner,
@@ -75,14 +78,14 @@ pub struct Parser<'a> {
     current: RefCell<Token<'a>>,
     previous: RefCell<Option<Token<'a>>>,
     chunk: RefCell<&'a mut Chunk>,
-    compiler: RefCell<&'a mut Compiler<'a>>,
+    compiler: RefCell<&'a mut Compiler>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(
         scanner: &'a Scanner,
         chunk: &'a mut Chunk,
-        compiler: &'a mut Compiler<'a>,
+        compiler: &'a mut Compiler,
     ) -> Result<Self, Box<dyn ErrTrait>> {
         let current = RefCell::new(scanner.next()?);
         Ok(Parser {
@@ -122,7 +125,7 @@ impl<'a> Parser<'a> {
         }
         let scan_line = self.scanner.line();
         return Err(Box::new(ParserErr::new(
-            format!("Expected {} found {}", expected, token),
+            format!("Expected {} but found {}", expected, token),
             self.scanner.line_to_string(),
             scan_line.number,
             scan_line.offset,
@@ -162,6 +165,35 @@ impl<'a> Parser<'a> {
         self.compiler
             .borrow_mut()
             .end_scope(&mut self.chunk.borrow_mut(), self.scanner.line().number)?;
+        Ok(())
+    }
+
+    fn escape_scope(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        let mut brace_pair_count: u32 = 1;
+        loop {
+            if brace_pair_count == 0 {
+                break;
+            }
+            if self.match_(TokenType::LEFT_BRACE)? {
+                brace_pair_count += 1;
+                continue;
+            }
+            if self.match_(TokenType::RIGHT_BRACE)? {
+                brace_pair_count -= 1;
+                continue;
+            }
+            self.advance()?;
+            if self.match_(TokenType::EOF)? {
+                let token = self.get_previous()?;
+                let scan_line = self.scanner.line();
+                return Err(Box::new(ParserErr::new(
+                    "Unexpected EOF".to_string(),
+                    String::from_utf8_lossy(token.literal).to_string(),
+                    scan_line.number,
+                    scan_line.offset,
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -415,6 +447,56 @@ impl<'a> Parser<'a> {
         self.parse_expr(Precendence::Assignment)
     }
 
+    pub fn call(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        let mut args_len: usize = 0;
+        if !self.check(TokenType::RIGHT_PAREN) {
+            loop {
+                self.expression()?;
+                args_len += 1;
+                if !self.match_(TokenType::COMMA)? {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RIGHT_PAREN)?;
+
+        let line = self.scanner.line();
+        self.push(Call::new(
+            args_len,
+            line.number,
+            self.scanner.line_to_string(),
+        ))?;
+        Ok(())
+    }
+
+    fn function(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.start_scope();
+        self.consume(TokenType::LEFT_PAREN)?;
+        if !self.check(TokenType::RIGHT_PAREN) {
+            loop {
+                self.consume(TokenType::IDENTIFIER)?;
+                let id = self.previous.borrow().as_ref().unwrap().clone();
+
+                let scope = self.var_decl_inner(false, id.clone())?;
+
+                self.push(Define::new(scope, format!("{}", id)))?;
+
+                // marks the new var as initialized
+                self.compiler.borrow().mark_latest_init();
+
+                if !self.match_(TokenType::COMMA)? {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RIGHT_PAREN)?;
+        self.consume(TokenType::LEFT_BRACE)?;
+        self.block()?;
+        self.end_scope()?;
+
+        Ok(())
+    }
+
     fn print(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         self.expression()?;
         self.consume(TokenType::SEMICOLON)?;
@@ -437,10 +519,11 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn var_decl(&'a self, const_: bool) -> Result<(), Box<dyn ErrTrait>> {
-        self.consume(TokenType::IDENTIFIER)?;
-        let id = self.previous.borrow().as_ref().unwrap().clone();
-
+    fn var_decl_inner(
+        &'a self,
+        const_: bool,
+        id: Token<'a>,
+    ) -> Result<DefinitionScope, Box<dyn ErrTrait>> {
         // we need to check that this isn't a redefinition
         // in the same scope
         let scope_depth = self.compiler.borrow().scope();
@@ -459,7 +542,19 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let scope = self.compiler.borrow_mut().add_local(&id, const_);
+        let scope = self
+            .compiler
+            .borrow_mut()
+            .add_local(format!("{}", id), const_);
+
+        Ok(scope)
+    }
+
+    fn var_decl(&'a self, const_: bool) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+
+        let scope = self.var_decl_inner(const_, id.clone())?;
 
         if self.match_(TokenType::EQUAL)? {
             self.expression()?;
@@ -600,6 +695,60 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn func_decl(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+
+        // mark the new fun as init
+        let scope = self
+            .compiler
+            .borrow_mut()
+            .add_local(format!("{}", id), true);
+        self.compiler.borrow().mark_latest_init();
+
+        // function decl semantics
+        let mut func = Compiler::compile(
+            self.scanner.src_vec_from_current(),
+            FunctionType::Function(format!("{}", id), self.scanner.line().number as u32),
+            self.compiler.borrow().globals(),
+        )?;
+
+        // skip over function
+        let mut arity: usize = 0;
+        self.consume(TokenType::LEFT_PAREN)?;
+
+        if !self.check(TokenType::RIGHT_PAREN) {
+            loop {
+                self.advance()?;
+                arity += 1;
+                if !self.match_(TokenType::COMMA)? {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RIGHT_PAREN)?;
+        self.consume(TokenType::LEFT_BRACE)?;
+        self.escape_scope()?;
+
+        func.set_arity(arity);
+
+        // push fun instructions
+        self.push(Constant::new(Value::Func(Rc::new(func))))?;
+        self.push(Define::new(scope, format!("{}", id)))?;
+
+        Ok(())
+    }
+
+    fn return_(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        if !self.check(TokenType::SEMICOLON) {
+            self.expression()?;
+        }
+        self.consume(TokenType::SEMICOLON)?;
+
+        self.push(Return::new())?;
+        Ok(())
+    }
+
     fn statement(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         if self.match_(TokenType::PRINT)? {
             return self.print();
@@ -630,15 +779,25 @@ impl<'a> Parser<'a> {
         if self.match_(TokenType::FOR)? {
             return self.for_stmt();
         }
+        if self.match_(TokenType::FUN)? {
+            return self.func_decl();
+        }
+        if self.match_(TokenType::RETURN)? {
+            return self.return_();
+        }
         self.statement()
     }
 
     pub fn parse(&'a self) -> Result<(), Box<dyn ErrTrait>> {
-        loop {
-            if self.scanner.is_at_end() {
-                break;
-            }
-            self.declaration()?;
+        let compiler_type = self.compiler.borrow().type_.clone();
+        match compiler_type {
+            FunctionType::Function(_, _) => return self.function(),
+            FunctionType::Script => loop {
+                if self.scanner.is_at_end() {
+                    break;
+                }
+                self.declaration()?;
+            },
         }
         Ok(())
     }

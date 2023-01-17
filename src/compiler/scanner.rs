@@ -73,6 +73,10 @@ impl<'a> Scanner<'a> {
         index
     }
 
+    pub fn src_vec_from_current(&self) -> Vec<u8> {
+        self.input_stream[*self.current.borrow() - 1..].to_vec()
+    }
+
     pub(super) fn line(&self) -> Line {
         Line {
             number: *self.line.borrow(),

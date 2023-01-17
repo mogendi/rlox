@@ -2,10 +2,7 @@ use std::fmt::{Debug, Display};
 
 use crate::errors::err::ErrTrait;
 
-use super::{
-    err::ChunkErr,
-    instructions::{Instruction, InstructionType},
-};
+use super::{err::ChunkErr, instructions::Instruction};
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -35,14 +32,6 @@ impl Chunk {
         self.capacity = self.code.capacity();
         self.lines.push(line);
         Ok(())
-    }
-
-    fn disassemble(&self) -> Vec<InstructionType> {
-        let mut instructions = Vec::new();
-        for instruction in &self.code {
-            instructions.push(instruction.disassemble());
-        }
-        instructions
     }
 
     pub fn swap_instructions(
@@ -92,21 +81,12 @@ mod tests {
     use super::*;
 
     #[test]
-    #[allow(unused_must_use)]
-    fn test_disassemble() {
-        let mut chunk = Chunk::new();
-        chunk.write_to_chunk(Box::new(Return::_new()), 1);
-        let insts = chunk.disassemble();
-        assert_eq!(insts, vec![InstructionType::OP_RETURN]);
-    }
-
-    #[test]
     fn test_chunk_display() {
         let mut chunk = Chunk::new();
         chunk
             .write_to_chunk(Box::new(Constant::new(Value::Number(1.0))), 1)
             .unwrap();
-        chunk.write_to_chunk(Box::new(Return::_new()), 1).unwrap();
+        chunk.write_to_chunk(Box::new(Return::new()), 1).unwrap();
         assert_eq!(format!("{}", chunk), "1  OP_CONST       1\n|  OP_RETURN\n");
         print!("{}", chunk);
     }

@@ -30,6 +30,14 @@ impl Table {
         }
         None
     }
+
+    pub fn keys(&self) -> usize {
+        self.vars.keys().len()
+    }
+
+    pub fn exists(&self, identifier: &String) -> bool {
+        self.vars.contains_key(identifier)
+    }
 }
 
 impl Display for Table {

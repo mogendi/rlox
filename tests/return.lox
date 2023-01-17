@@ -1,0 +1,18 @@
+fun a(a, b) {
+    return a + b;
+}
+
+print a(12, 13); // 25
+
+fun short_circiut_on_3(val) {
+    while (val < 100) {
+        if (val == 3) {
+            return val;
+        }
+        val = val + 1;
+    }
+    return val;
+}
+
+print short_circiut_on_3(0); // 3
+print short_circiut_on_3(4); // 100

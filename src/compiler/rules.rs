@@ -66,8 +66,8 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
     match token_type {
         TokenType::LEFT_PAREN => ParseRule {
             prefix: Some(Box::new(|parser, _| parser.grouping())),
-            infix: None,
-            precedence: Precendence::None,
+            infix: Some(Box::new(|parser| parser.call())),
+            precedence: Precendence::Call,
         },
 
         TokenType::RIGHT_PAREN => ParseRule {

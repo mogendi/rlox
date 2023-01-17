@@ -1,4 +1,5 @@
 pub mod binary;
+pub mod call;
 pub mod chunk;
 pub mod constant;
 pub mod define;

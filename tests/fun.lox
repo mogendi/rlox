@@ -1,0 +1,27 @@
+fun add(lh, rh) {
+    print lh;
+    print rh;
+    print lh + rh;
+}
+
+print add;
+add(1, 2);
+
+fun sum(a, b, c) {
+    a();
+    print a + b + c;
+}
+
+sum(1,2,3);
+
+print clock(); //native
+
+{
+    var test = "Hello";
+    fun tets_scopes() {
+        print test + " world";
+    }
+
+    tets_scopes();
+}
+
