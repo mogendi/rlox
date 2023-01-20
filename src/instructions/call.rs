@@ -1,9 +1,13 @@
 use std::{
+    cell::RefCell,
     fmt::{Debug, Display},
     rc::Rc,
 };
 
-use crate::{instructions::err::InstructionErr, values::values::Value};
+use crate::{
+    compiler::compiler::UpValue, instructions::err::InstructionErr, values::values::Value,
+    vm::table::Table,
+};
 
 use super::instructions::{InstructionBase, InstructionType};
 
@@ -32,9 +36,12 @@ impl InstructionBase for Call {
 
     fn eval(
         &self,
-        stack: Rc<std::cell::RefCell<Vec<Value>>>,
-        env: Rc<std::cell::RefCell<crate::vm::table::Table>>,
-        call_frame: Rc<std::cell::RefCell<Vec<String>>>,
+        stack: Rc<RefCell<Vec<Value>>>,
+        env: Rc<RefCell<Table>>,
+        call_frame: Rc<RefCell<Vec<String>>>,
+        _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
         _: usize,
     ) -> Result<usize, Box<dyn crate::errors::err::ErrTrait>> {
         let func_pos = (*stack)
@@ -52,7 +59,7 @@ impl InstructionBase for Call {
                             "
 Line {}: {}
          ^
-         -------- Expected {} argument for {} found {}
+         -------- Expected {} argument(s) for {} found {}
 ",
                             self.line, self.line_contents, arity, func, self.args_len
                         ),

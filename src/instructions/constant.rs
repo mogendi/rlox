@@ -4,7 +4,9 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, values::values::Value, vm::table::Table};
+use crate::{
+    compiler::compiler::UpValue, errors::err::ErrTrait, values::values::Value, vm::table::Table,
+};
 
 use super::instructions::{InstructionBase, InstructionType};
 
@@ -29,6 +31,9 @@ impl InstructionBase for Constant {
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
+        _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
         _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         stack.borrow_mut().push(self.operand.clone());

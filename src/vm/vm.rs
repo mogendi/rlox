@@ -50,7 +50,9 @@ impl<'a> VM<'a> {
         src: Vec<u8>,
         globals: Rc<RefCell<Table>>,
     ) -> Result<Func, Box<dyn ErrTrait>> {
-        Compiler::compile(src, FunctionType::Script, globals)
+        let upvalues = Rc::new(RefCell::new(Vec::new()));
+        let func = Compiler::compile(src, FunctionType::Script, globals, None, upvalues)?;
+        Ok(func)
     }
 
     pub fn interprate(src: Vec<u8>) -> Result<(), Box<dyn ErrTrait>> {

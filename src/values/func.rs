@@ -4,7 +4,10 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, instructions::chunk::Chunk, vm::table::Table};
+use crate::{
+    compiler::compiler::UpValue, errors::err::ErrTrait, instructions::chunk::Chunk,
+    vm::table::Table,
+};
 
 use super::{err::ValueErr, values::Value};
 
@@ -13,15 +16,27 @@ pub struct Func {
     pub chunk: Chunk,
     name: String,
     ip: RefCell<usize>,
+    upvalues: Rc<RefCell<Vec<UpValue>>>,
+    upvalue_offset: usize,
+    upvalue_count: usize,
 }
 
 impl Func {
-    pub fn new(name: String, chunk: Chunk) -> Self {
+    pub fn new(
+        name: String,
+        chunk: Chunk,
+        upvalue_offset: usize,
+        upvalue_count: usize,
+        upvalues: Rc<RefCell<Vec<UpValue>>>,
+    ) -> Self {
         Func {
             arity: 0,
             chunk,
             name,
             ip: RefCell::new(0),
+            upvalues,
+            upvalue_offset,
+            upvalue_count,
         }
     }
 
@@ -76,6 +91,9 @@ impl Func {
                     env.clone(),
                     call_frame.clone(),
                     stack_offset,
+                    self.upvalues.clone(),
+                    self.upvalue_offset,
+                    self.upvalue_count,
                 )?;
                 if offset > 0 {
                     self.ip.replace(offset);
@@ -85,16 +103,16 @@ impl Func {
                 if (*call_frame).borrow().len() < call_frame_size {
                     // since this is an early return, OP_POPN hasn't run yet, so we need
                     // to do the cleanup here
+                    self.sync_upvalues(stack.clone(), stack_offset);
                     let val = Ok((*stack).borrow_mut().pop().unwrap());
                     (*stack).borrow_mut().truncate(stack_offset);
                     self.ip.replace(pre_exec_ip);
                     return val;
                 }
             }
-            Self::dump_stack(stack.clone());
-            Self::dump_globals(env.clone());
         }
 
+        self.sync_upvalues(stack.clone(), stack_offset);
         (*call_frame).borrow_mut().pop();
         self.ip.replace(pre_exec_ip);
         Ok(Value::Nil)
@@ -106,6 +124,21 @@ impl Func {
 
     pub fn set_arity(&mut self, arity: usize) {
         self.arity = arity
+    }
+
+    fn sync_upvalues(&self, stack: Rc<RefCell<Vec<Value>>>, stack_offset: usize) {
+        if self.upvalue_count == 0 {
+            return;
+        }
+        if self.upvalue_count >= (*stack).borrow().len().saturating_sub(stack_offset) {
+            return;
+        }
+        for idx in self.upvalue_offset..self.upvalue_offset + self.upvalue_count {
+            let stack_idx = (*self.upvalues).borrow()[idx].index;
+            let val = (*stack).borrow()[stack_idx.saturating_add(stack_offset)].clone();
+
+            (*self.upvalues).borrow_mut()[idx].value = val;
+        }
     }
 }
 

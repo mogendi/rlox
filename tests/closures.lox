@@ -1,0 +1,30 @@
+fun makeClosure() {
+    var local = "local";
+    fun closure() {
+        print local;
+    }
+    local = "local overwritten";
+    return closure;
+}
+
+var closure = makeClosure();
+closure();
+
+var globalOne;
+var globalTwo;
+
+fun test() {
+    for(var a = 1; a <= 2; a = a + 1) {
+        fun closure() { print a; }
+        if (globalOne == nil) {
+            globalOne = closure;
+        }
+        if (globalTwo == nil) {
+            globalTwo = closure;
+        }
+    }
+}
+
+test();
+globalOne();
+globalTwo();

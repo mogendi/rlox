@@ -78,14 +78,14 @@ pub struct Parser<'a> {
     current: RefCell<Token<'a>>,
     previous: RefCell<Option<Token<'a>>>,
     chunk: RefCell<&'a mut Chunk>,
-    compiler: RefCell<&'a mut Compiler>,
+    pub compiler: RefCell<&'a mut Compiler<'a>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(
-        scanner: &'a Scanner,
+        scanner: &'a Scanner<'a>,
         chunk: &'a mut Chunk,
-        compiler: &'a mut Compiler,
+        compiler: &'a mut Compiler<'a>,
     ) -> Result<Self, Box<dyn ErrTrait>> {
         let current = RefCell::new(scanner.next()?);
         Ok(Parser {
@@ -711,6 +711,8 @@ impl<'a> Parser<'a> {
             self.scanner.src_vec_from_current(),
             FunctionType::Function(format!("{}", id), self.scanner.line().number as u32),
             self.compiler.borrow().globals(),
+            Some(*self.compiler.borrow()),
+            self.compiler.borrow().upvalues.clone(),
         )?;
 
         // skip over function
