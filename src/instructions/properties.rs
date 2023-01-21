@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::{
+    define::DefinitionScope,
     err::InstructionErr,
     instructions::{InstructionBase, InstructionType},
 };
@@ -114,21 +115,43 @@ impl InstructionBase for Get {
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let inst = (*stack).borrow_mut().pop().unwrap();
         match inst {
-            Value::Instance(instance) => match instance.get_prop(self.property.clone()) {
-                Some(val) => {
-                    (*stack).borrow_mut().push(val);
+            Value::Instance(instance) => {
+                match instance.get_prop(self.property.clone(), instance.clone()) {
+                    Some(val) => {
+                        (*stack).borrow_mut().push(val);
+                    }
+                    None => {
+                        return Err(Box::new(InstructionErr::new(
+                            format!(
+                                "
+Line {}: {}
+          ^
+          -------- `{}` has no property `{}`
+",
+                                self.line, self.line_contents, instance, self.property
+                            ),
+                            format!("{}.{}", instance, self.property),
+                        )));
+                    }
+                }
+            }
+            Value::Class(class) => match class.get_method(self.property.clone()) {
+                Some(method) => {
+                    (*stack)
+                        .borrow_mut()
+                        .push(Value::ClassMethod(method.clone()));
                 }
                 None => {
                     return Err(Box::new(InstructionErr::new(
                         format!(
                             "
 Line {}: {}
-        ^
-        -------- `{}` has not property `{}`
+          ^
+          -------- `{}` has no method `{}`
 ",
-                            self.line, self.line_contents, instance, self.property
+                            self.line, self.line_contents, class, self.property
                         ),
-                        format!("{}.{}", instance, self.property),
+                        format!("{}.{}", class, self.property),
                     )));
                 }
             },
@@ -137,8 +160,8 @@ Line {}: {}
                     format!(
                         "
 Line {}: {}
-     ^
-     -------- The dot notation is only supported for instances of classes, not `{}`
+          ^
+          -------- Property accesses only supported for classes & instances not `{}`
 ",
                         self.line, self.line_contents, inst
                     ),
@@ -163,5 +186,95 @@ impl Debug for Get {
 impl Display for Get {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} {}", self.code, self.property)
+    }
+}
+
+pub struct Inherit {
+    code: InstructionType,
+    ident: String,
+    target: DefinitionScope,
+    line: usize,
+    line_contents: String,
+}
+
+impl Inherit {
+    pub fn new(target: DefinitionScope, ident: String, line: usize, line_contents: String) -> Self {
+        Inherit {
+            code: InstructionType::OP_INHERIT,
+            ident,
+            target,
+            line,
+            line_contents,
+        }
+    }
+}
+
+impl InstructionBase for Inherit {
+    fn eval(
+        &self,
+        stack: Rc<RefCell<Vec<Value>>>,
+        globals: Rc<RefCell<Table>>,
+        _: Rc<RefCell<Vec<String>>>,
+        offset: usize,
+        upvalue_stack: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
+        _: usize,
+    ) -> Result<usize, Box<dyn ErrTrait>> {
+        let parent = (*stack).borrow_mut().pop().unwrap();
+        let child = match self.target {
+            DefinitionScope::Global => (*globals).borrow_mut().resolve(&self.ident).unwrap(),
+            DefinitionScope::Local(idx) => (*stack).borrow()[idx.saturating_add(offset)].clone(),
+            DefinitionScope::UpValue(idx) => (*upvalue_stack).borrow()[idx].value.clone(),
+        };
+        match parent.clone() {
+            Value::Class(parent_class) => match child.clone() {
+                Value::Class(child_class) => {
+                    (*child_class).inherit(parent_class);
+                }
+                _ => {
+                    return Err(Box::new(InstructionErr::new(
+                        format!(
+                            "
+Line {}: {}
+            ^
+            -------- Invalid inherit target: only class can inherit from classes, not `{}`
+",
+                            self.line, self.line_contents, child
+                        ),
+                        format!("{} < {}", child, parent),
+                    )));
+                }
+            },
+            _ => {
+                return Err(Box::new(InstructionErr::new(
+                    format!(
+                        "
+Line {}: {}
+          ^
+          -------- Can only inherit from classes, not `{}`
+",
+                        self.line, self.line_contents, parent
+                    ),
+                    format!("{} < {}", child, parent),
+                )));
+            }
+        }
+        Ok(0)
+    }
+
+    fn disassemble(&self) -> InstructionType {
+        self.code.clone()
+    }
+}
+
+impl Debug for Inherit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} < {:?}", self.code, self.ident)
+    }
+}
+
+impl Display for Inherit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} < {:?}", self.code, self.ident)
     }
 }

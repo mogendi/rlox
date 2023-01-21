@@ -7,7 +7,7 @@ use std::{
 use crate::{
     compiler::compiler::UpValue,
     instructions::err::InstructionErr,
-    values::{obj::Instance, values::Value},
+    values::{func::Method, obj::Instance, values::Value},
     vm::table::Table,
 };
 
@@ -90,8 +90,70 @@ Line {}: {}
                 func.call(stack.clone())?;
             }
             Value::Class(class) => {
-                let instance = Instance::new(class.clone());
-                (*stack).borrow_mut().push(Value::Instance(Rc::new(instance)));
+                match class.get_method("__init__".to_string()) {
+                    Some(method) => {
+                        let arity = (*method).arity();
+                        if arity != self.args_len {
+                            return Err(Box::new(InstructionErr::new(
+                                format!(
+"
+Line {}: {}
+          ^
+          -------- Expected {} argument(s) for {} found {}
+",
+                                    self.line, self.line_contents, arity, method, self.args_len
+                                ),
+                                format!("{}(...)", method.name()),
+                            )));
+                        }
+                        let instance = Rc::new(Instance::new(class.clone()));
+                        let offset = (*stack).borrow().len().saturating_sub(self.args_len);
+                        Method::new(method.clone(), instance.clone()).call(stack.clone(), env, call_frame, offset)?;
+                        (*stack).borrow_mut().push(Value::Instance(instance.clone()));
+                    }
+                    None => {
+                        let instance = Instance::new(class.clone());
+                        (*stack).borrow_mut().push(Value::Instance(Rc::new(instance)));
+                    }
+                }
+            }
+            Value::Method(method) => {
+                let arity = method.func.arity();
+                if arity != self.args_len {
+                    return Err(Box::new(InstructionErr::new(
+                        format!(
+                            "
+Line {}: {}
+         ^
+         -------- Expected {} argument for {} found {}
+",
+                            self.line, self.line_contents, arity, method.func, self.args_len
+                        ),
+                        format!("{}(...)", method.func.name()),
+                    )));
+                }
+                let offset = (*stack).borrow().len().saturating_sub(self.args_len);
+                let val = method.call(stack.clone(), env, call_frame, offset)?;
+                (*stack).borrow_mut().push(val);
+            }
+            Value::ClassMethod(func) => {
+                let arity = (*func).arity();
+                if arity != self.args_len {
+                    return Err(Box::new(InstructionErr::new(
+                        format!(
+                            "
+Line {}: {}
+         ^
+         -------- Expected {} argument(s) for {} found {}
+",
+                            self.line, self.line_contents, arity, func, self.args_len
+                        ),
+                        format!("{}(...)", func.name()),
+                    )));
+                }
+                let offset = (*stack).borrow().len().saturating_sub(self.args_len).saturating_sub(1);
+                let val = func.call(stack.clone(), env, call_frame, offset)?;
+                (*stack).borrow_mut().push(val);
             }
             _ => {
                 return Err(Box::new(InstructionErr::new(

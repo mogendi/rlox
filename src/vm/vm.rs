@@ -51,7 +51,7 @@ impl<'a> VM<'a> {
         globals: Rc<RefCell<Table>>,
     ) -> Result<Func, Box<dyn ErrTrait>> {
         let upvalues = Rc::new(RefCell::new(Vec::new()));
-        let func = Compiler::compile(src, FunctionType::Script, globals, None, upvalues)?;
+        let func = Compiler::compile(src, FunctionType::Script, globals, None, upvalues, None)?;
         Ok(func)
     }
 

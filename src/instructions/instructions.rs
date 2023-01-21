@@ -26,6 +26,7 @@ pub enum InstructionType {
     OP_CALL,
     OP_SET,
     OP_GET,
+    OP_INHERIT,
 }
 
 impl Display for InstructionType {

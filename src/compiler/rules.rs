@@ -179,7 +179,7 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::IDENTIFIER => ParseRule {
-            prefix: Some(Box::new(|parser, can_assign| parser.var(can_assign))),
+            prefix: Some(Box::new(|parser, can_assign| parser.var(can_assign, None))),
             infix: None,
             precedence: Precendence::None,
         },
@@ -263,13 +263,13 @@ pub fn construct_rule<'a>(token_type: TokenType) -> ParseRule<'a> {
         },
 
         TokenType::SUPER => ParseRule {
-            prefix: None,
+            prefix: Some(Box::new(|parser, _| parser.super_())),
             infix: None,
             precedence: Precendence::None,
         },
 
         TokenType::THIS => ParseRule {
-            prefix: None,
+            prefix: Some(Box::new(|parser, _| parser.var(false, None))),
             infix: None,
             precedence: Precendence::None,
         },

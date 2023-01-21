@@ -9,7 +9,7 @@ use crate::{
     vm::table::Table,
 };
 
-use super::{err::ValueErr, values::Value};
+use super::{err::ValueErr, obj::Instance, values::Value};
 
 pub struct Func {
     arity: usize,
@@ -230,5 +230,30 @@ impl PartialEq for Native {
 
     fn ne(&self, other: &Self) -> bool {
         self.name != other.name || self.arity != other.arity
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Method {
+    pub func: Rc<Func>,
+    pub instance: Rc<Instance>,
+}
+
+impl Method {
+    pub fn new(func: Rc<Func>, instance: Rc<Instance>) -> Self {
+        Method { func, instance }
+    }
+
+    pub fn call(
+        &self,
+        stack: Rc<RefCell<Vec<Value>>>,
+        env: Rc<RefCell<Table>>,
+        call_frame: Rc<RefCell<Vec<String>>>,
+        stack_offset: usize,
+    ) -> Result<Value, Box<dyn ErrTrait>> {
+        (*stack)
+            .borrow_mut()
+            .push(Value::Instance(self.instance.clone()));
+        return self.func.call(stack, env, call_frame, stack_offset - 1);
     }
 }

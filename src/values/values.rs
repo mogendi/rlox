@@ -7,7 +7,7 @@ use crate::errors::err::ErrTrait;
 
 use super::{
     err::ValueErr,
-    func::{Func, Native},
+    func::{Func, Method, Native},
     obj::{Class, Instance},
 };
 
@@ -18,7 +18,9 @@ pub enum Value {
     Nil,
     Bool(bool),
     Func(Rc<Func>),
+    ClassMethod(Rc<Func>),
     Native(Rc<Native>),
+    Method(Method),
     Class(Rc<Class>),
     Instance(Rc<Instance>),
 }
@@ -49,7 +51,13 @@ impl Debug for Value {
             },
             Value::String(val) => format!("<String {}>", val.to_owned()),
             Value::Func(func) => format!("<Fun {}>", (*func).name()),
+            Value::ClassMethod(func) => format!("<Fun {}>", (*func).name()),
             Value::Native(func) => format!("<Native Fun {}>", (*func).name()),
+            Value::Method(method) => format!(
+                "<Method {} @{}>",
+                method.func.name(),
+                method.instance.name()
+            ),
             Value::Class(class) => format!("<Class {}>", (*class).name()),
             Value::Instance(instance) => format!("<Instance {}>", (*instance).name()),
         };
@@ -67,9 +75,15 @@ impl Display for Value {
                 true => String::from("true"),
                 false => String::from("false"),
             },
-            Value::String(val) => val.to_owned(),
+            Value::String(val) => format!("\"{}\"", val.to_owned()),
             Value::Func(func) => format!("<Fun {}>", (*func).name()),
+            Value::ClassMethod(func) => format!("<Fun {}>", (*func).name()),
             Value::Native(func) => format!("<Native Fun {}>", (*func).name()),
+            Value::Method(method) => format!(
+                "<Method {} @{}>",
+                method.func.name(),
+                method.instance.name()
+            ),
             Value::Class(class) => format!("<Class {}>", (*class).name()),
             Value::Instance(instance) => format!("<Instance {}>", (*instance).name()),
         };

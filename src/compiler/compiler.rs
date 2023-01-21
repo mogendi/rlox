@@ -8,12 +8,13 @@ use crate::{
     vm::table::Table,
 };
 
-use super::token::Token;
+use super::token::{Token, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FunctionType {
     Script,
     Function(String, u32),
+    Method(String, u32),
 }
 
 #[derive(Debug)]
@@ -39,6 +40,8 @@ pub struct Compiler<'a> {
     globals: Rc<RefCell<Table>>,
     enclosing_compiler: Option<&'a Compiler<'a>>,
     pub upvalues: Rc<RefCell<Vec<UpValue>>>,
+    pub context: String,
+    pub inheriting: Option<String>,
 }
 
 impl<'a> Compiler<'a> {
@@ -48,8 +51,14 @@ impl<'a> Compiler<'a> {
         globals: Rc<RefCell<Table>>,
         enclosing_compiler: Option<&'a Compiler>,
         upvalues: Rc<RefCell<Vec<UpValue>>>,
+        inheriting: Option<String>,
     ) -> Result<Func, Box<dyn ErrTrait>> {
         let pre_compile_upvalue_len = (*upvalues).borrow().len();
+        let context = match &type_ {
+            FunctionType::Script => String::from("__main__"),
+            FunctionType::Method(name, _) | FunctionType::Function(name, _) => name.clone(),
+        };
+
         let mut compiler = Compiler {
             locals: Rc::new(RefCell::new(Vec::new())),
             locals_count: 0,
@@ -58,6 +67,8 @@ impl<'a> Compiler<'a> {
             globals,
             enclosing_compiler,
             upvalues,
+            context: context.clone(),
+            inheriting,
         };
         let scanner = Scanner::new(src);
         let mut chunk = Chunk::new();
@@ -68,22 +79,13 @@ impl<'a> Compiler<'a> {
             .len()
             .saturating_sub(pre_compile_upvalue_len);
         let upvalues = parser.compiler.borrow().upvalues.clone();
-        match type_ {
-            FunctionType::Script => Ok(Func::new(
-                "__main__".to_string(),
-                chunk,
-                pre_compile_upvalue_len,
-                upvalue_count,
-                upvalues.clone(),
-            )),
-            FunctionType::Function(name, _) => Ok(Func::new(
-                name,
-                chunk,
-                pre_compile_upvalue_len,
-                upvalue_count,
-                upvalues.clone(),
-            )),
-        }
+        Ok(Func::new(
+            context,
+            chunk,
+            pre_compile_upvalue_len,
+            upvalue_count,
+            upvalues.clone(),
+        ))
     }
 
     pub fn start_scope(&mut self) -> usize {
@@ -230,6 +232,13 @@ impl<'a> Compiler<'a> {
 
     pub fn globals(&self) -> Rc<RefCell<Table>> {
         self.globals.clone()
+    }
+
+    pub fn inheriting(&self) -> Option<Token> {
+        match &self.inheriting {
+            Some(ident) => Some(Token::new(TokenType::IDENTIFIER, ident.as_bytes(), 0)),
+            None => None,
+        }
     }
 }
 

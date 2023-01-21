@@ -13,7 +13,7 @@ use super::{
     instructions::{InstructionBase, InstructionType},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DefinitionScope {
     Global,
     Local(usize),
