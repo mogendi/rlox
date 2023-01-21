@@ -1,0 +1,31 @@
+class Doughnut {
+    cook() { print "Dunk in the fryer"; }
+
+    finish(toping) {
+        print "Top with " + toping;
+    }
+}
+
+class Glazed < Doughnut {
+    finish() { super.finish("honey glazing"); }
+}
+
+var glazed = Glazed();
+glazed.cook();
+glazed.finish();
+
+class A {
+    method() { print "A method"; }
+}
+
+class B < A {
+    method() { print "B method"; }
+
+    test() { super.method(); }
+}
+
+class C < B {}
+
+var c = C();
+print "";
+c.test();

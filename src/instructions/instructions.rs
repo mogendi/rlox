@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, vm::table::Table};
+use crate::{compiler::compiler::UpValue, errors::err::ErrTrait, vm::table::Table};
 
 use crate::values::values::Value;
 
@@ -24,6 +24,9 @@ pub enum InstructionType {
     OP_JUMP,
     OP_NONE,
     OP_CALL,
+    OP_SET,
+    OP_GET,
+    OP_INHERIT,
 }
 
 impl Display for InstructionType {
@@ -40,6 +43,9 @@ pub trait InstructionBase {
         env: Rc<RefCell<Table>>,
         call_frame: Rc<RefCell<Vec<String>>>,
         offset: usize,
+        upvalue_stack: Rc<RefCell<Vec<UpValue>>>,
+        upvalue_offset: usize,
+        local_upvalue_len: usize,
     ) -> Result<usize, Box<dyn ErrTrait>>;
 }
 
@@ -64,6 +70,9 @@ impl InstructionBase for Pop {
         stack: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
+        _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
         _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         stack.borrow_mut().pop();
@@ -110,6 +119,9 @@ impl InstructionBase for PopN {
         _: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
         _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let n_actual = (*stack).borrow().len().saturating_sub(self.n);
         stack.borrow_mut().truncate(n_actual);
@@ -155,6 +167,9 @@ impl InstructionBase for None {
         _: Rc<RefCell<Vec<Value>>>,
         _: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
+        _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
         _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         Ok(0)

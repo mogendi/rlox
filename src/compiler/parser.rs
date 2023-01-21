@@ -15,10 +15,11 @@ use crate::{
         instructions::{Instruction, None, Pop},
         jump::{ForceJump, Jump},
         print::Print,
+        properties::{Get, Inherit, Set},
         return_inst::Return,
         unary::{Unary, UnaryOp},
     },
-    values::values::Value,
+    values::{func::Func, obj::Class, values::Value},
 };
 
 use super::{
@@ -78,14 +79,14 @@ pub struct Parser<'a> {
     current: RefCell<Token<'a>>,
     previous: RefCell<Option<Token<'a>>>,
     chunk: RefCell<&'a mut Chunk>,
-    compiler: RefCell<&'a mut Compiler>,
+    pub compiler: RefCell<&'a mut Compiler<'a>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(
-        scanner: &'a Scanner,
+        scanner: &'a Scanner<'a>,
         chunk: &'a mut Chunk,
-        compiler: &'a mut Compiler,
+        compiler: &'a mut Compiler<'a>,
     ) -> Result<Self, Box<dyn ErrTrait>> {
         let current = RefCell::new(scanner.next()?);
         Ok(Parser {
@@ -244,8 +245,27 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    pub fn var(&'a self, can_assign: bool) -> Result<(), Box<dyn ErrTrait>> {
-        let token = self.get_previous()?;
+    pub fn var(&'a self, can_assign: bool, ident: Option<Token>) -> Result<(), Box<dyn ErrTrait>> {
+        let token = match ident {
+            Some(token) => token,
+            None => self.get_previous()?,
+        };
+
+        // check if its `this` in incorrect context
+        if format!("{}", token) == "this".to_string() {
+            match self.compiler.borrow().type_ {
+                FunctionType::Method(_, _) => {}
+                _ => {
+                    let scan_line = self.scanner.line();
+                    return Err(Box::new(ParserErr::new(
+                        "`this` can only be used in the context of a class method".to_string(),
+                        self.scanner.line_to_string(),
+                        scan_line.number,
+                        scan_line.offset,
+                    )));
+                }
+            }
+        }
 
         // we need to find the relvant scope for the identifier before we
         // build any instructions
@@ -294,6 +314,25 @@ impl<'a> Parser<'a> {
             )));
         }
         self.push(Resolve::new(format!("{}", token), scope))
+    }
+
+    pub fn super_(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        match self.compiler.borrow().inheriting {
+            Some(_) => self.var(false, self.compiler.borrow().inheriting())?,
+            None => {
+                let scan_line = self.scanner.line();
+                return Err(Box::new(ParserErr::new(
+                    "Invalid use of of super: can only use super in a class method of a child class".to_string(),
+                    self.scanner.line_to_string(),
+                    scan_line.number,
+                    scan_line.offset,
+                )));
+            }
+        }
+        self.consume(TokenType::DOT)?;
+        self.dot(false)?;
+
+        Ok(())
     }
 
     pub fn or(&'a self) -> Result<(), Box<dyn ErrTrait>> {
@@ -436,7 +475,7 @@ impl<'a> Parser<'a> {
             self.advance()?;
             let infix_rule = construct_rule(self.get_previous()?.token_type);
             match infix_rule.infix {
-                Some(method) => method(self)?,
+                Some(method) => method(self, can_assign)?,
                 None => return Err(infix_not_found_err()),
             }
         }
@@ -469,6 +508,29 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    pub fn dot(&'a self, can_assign: bool) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+        if can_assign && self.match_(TokenType::EQUAL)? {
+            self.expression()?;
+            let line = self.scanner.line();
+            self.push(Set::new(
+                format!("{}", id),
+                line.number,
+                self.scanner.line_to_string(),
+            ))?;
+        } else {
+            let line = self.scanner.line();
+            self.push(Get::new(
+                format!("{}", id),
+                line.number,
+                self.scanner.line_to_string(),
+            ))?;
+        }
+
+        Ok(())
+    }
+
     fn function(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         self.start_scope();
         self.consume(TokenType::LEFT_PAREN)?;
@@ -495,6 +557,55 @@ impl<'a> Parser<'a> {
         self.end_scope()?;
 
         Ok(())
+    }
+
+    fn method(
+        &'a self,
+        id: Option<Token<'a>>,
+        inheriting: Option<String>,
+    ) -> Result<Func, Box<dyn ErrTrait>> {
+        let type_: FunctionType;
+
+        match id {
+            Some(token) => {
+                type_ =
+                    FunctionType::Function(format!("{}", token), self.scanner.line().number as u32);
+            }
+            None => {
+                self.consume(TokenType::IDENTIFIER)?;
+                let id = self.previous.borrow().as_ref().unwrap().clone();
+                type_ = FunctionType::Method(format!("{}", id), self.scanner.line().number as u32);
+            }
+        };
+        let mut func = Compiler::compile(
+            self.scanner.src_vec_from_current(),
+            type_,
+            self.compiler.borrow().globals(),
+            Some(*self.compiler.borrow()),
+            self.compiler.borrow().upvalues.clone(),
+            inheriting,
+        )?;
+
+        // skip over function
+        let mut arity: usize = 0;
+        self.consume(TokenType::LEFT_PAREN)?;
+
+        if !self.check(TokenType::RIGHT_PAREN) {
+            loop {
+                self.advance()?;
+                arity += 1;
+                if !self.match_(TokenType::COMMA)? {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RIGHT_PAREN)?;
+        self.consume(TokenType::LEFT_BRACE)?;
+        self.escape_scope()?;
+
+        func.set_arity(arity);
+
+        Ok(func)
     }
 
     fn print(&'a self) -> Result<(), Box<dyn ErrTrait>> {
@@ -566,6 +677,21 @@ impl<'a> Parser<'a> {
         self.push(Define::new(scope, format!("{}", id)))?;
 
         // marks the new var as initialized
+        self.compiler.borrow().mark_latest_init();
+
+        Ok(())
+    }
+
+    fn this_decl(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        let line = self.scanner.line().number;
+        let id = Token::new(
+            TokenType::THIS,
+            &['t' as u8, 'h' as u8, 'i' as u8, 's' as u8],
+            line as u32,
+        );
+
+        let scope = self.var_decl_inner(true, id.clone())?;
+        self.push(Define::new(scope, format!("{}", id)))?;
         self.compiler.borrow().mark_latest_init();
 
         Ok(())
@@ -707,30 +833,7 @@ impl<'a> Parser<'a> {
         self.compiler.borrow().mark_latest_init();
 
         // function decl semantics
-        let mut func = Compiler::compile(
-            self.scanner.src_vec_from_current(),
-            FunctionType::Function(format!("{}", id), self.scanner.line().number as u32),
-            self.compiler.borrow().globals(),
-        )?;
-
-        // skip over function
-        let mut arity: usize = 0;
-        self.consume(TokenType::LEFT_PAREN)?;
-
-        if !self.check(TokenType::RIGHT_PAREN) {
-            loop {
-                self.advance()?;
-                arity += 1;
-                if !self.match_(TokenType::COMMA)? {
-                    break;
-                }
-            }
-        }
-        self.consume(TokenType::RIGHT_PAREN)?;
-        self.consume(TokenType::LEFT_BRACE)?;
-        self.escape_scope()?;
-
-        func.set_arity(arity);
+        let func = self.method(Some(id.clone()), None)?;
 
         // push fun instructions
         self.push(Constant::new(Value::Func(Rc::new(func))))?;
@@ -740,12 +843,77 @@ impl<'a> Parser<'a> {
     }
 
     fn return_(&'a self) -> Result<(), Box<dyn ErrTrait>> {
-        if !self.check(TokenType::SEMICOLON) {
-            self.expression()?;
-        }
-        self.consume(TokenType::SEMICOLON)?;
+        match self.compiler.borrow().context.as_str() {
+            "__init__" => match self.compiler.borrow().type_ {
+                FunctionType::Method(_, _) => {
+                    let scan_line = self.scanner.line();
+                    return Err(Box::new(ParserErr::new(
+                            "Can not return from a class initializer, the iniatializer implicitly returns an instance".to_string(),
+                            self.scanner.line_to_string(),
+                            scan_line.number,
+                            scan_line.offset,
+                        )));
+                }
+                _ => {}
+            },
+            _ => {
+                if !self.check(TokenType::SEMICOLON) {
+                    self.expression()?;
+                }
+                self.consume(TokenType::SEMICOLON)?;
 
-        self.push(Return::new())?;
+                self.push(Return::new())?;
+            }
+        };
+        Ok(())
+    }
+
+    fn class_decl(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+
+        let scope = self
+            .compiler
+            .borrow_mut()
+            .add_local(format!("{}", id), true);
+        self.compiler.borrow().mark_latest_init();
+
+        let mut inherits: bool = false;
+        let mut parent_class = id.clone();
+
+        if self.match_(TokenType::LESS)? {
+            self.consume(TokenType::IDENTIFIER)?;
+            parent_class = self.previous.borrow().as_ref().unwrap().clone();
+            inherits = true;
+        }
+
+        let class = Class::new(format!("{}", id));
+        let inheriting = match inherits {
+            true => Some(format!("{}", parent_class)),
+            false => None,
+        };
+        // define the class methods
+        self.consume(TokenType::LEFT_BRACE)?;
+        while !self.check(TokenType::RIGHT_BRACE) && !self.check(TokenType::EOF) {
+            let func = self.method(None, inheriting.clone())?;
+            class.set_method(func);
+        }
+        self.consume(TokenType::RIGHT_BRACE)?;
+
+        self.push(Constant::new(Value::Class(Rc::new(class))))?;
+        self.push(Define::new(scope.clone(), format!("{}", id)))?;
+
+        if inherits {
+            self.var(false, Some(parent_class.clone()))?;
+            let line = self.scanner.line();
+            self.push(Inherit::new(
+                scope,
+                format!("{}", id),
+                line.number,
+                self.scanner.line_to_string(),
+            ))?;
+        }
+
         Ok(())
     }
 
@@ -785,6 +953,9 @@ impl<'a> Parser<'a> {
         if self.match_(TokenType::RETURN)? {
             return self.return_();
         }
+        if self.match_(TokenType::CLASS)? {
+            return self.class_decl();
+        }
         self.statement()
     }
 
@@ -798,6 +969,10 @@ impl<'a> Parser<'a> {
                 }
                 self.declaration()?;
             },
+            FunctionType::Method(_, _) => {
+                self.this_decl()?;
+                return self.function();
+            }
         }
         Ok(())
     }

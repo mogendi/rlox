@@ -1,9 +1,15 @@
 use std::{
+    cell::RefCell,
     fmt::{Debug, Display},
     rc::Rc,
 };
 
-use crate::{instructions::err::InstructionErr, values::values::Value};
+use crate::{
+    compiler::compiler::UpValue,
+    instructions::err::InstructionErr,
+    values::{func::Method, obj::Instance, values::Value},
+    vm::table::Table,
+};
 
 use super::instructions::{InstructionBase, InstructionType};
 
@@ -32,9 +38,12 @@ impl InstructionBase for Call {
 
     fn eval(
         &self,
-        stack: Rc<std::cell::RefCell<Vec<Value>>>,
-        env: Rc<std::cell::RefCell<crate::vm::table::Table>>,
-        call_frame: Rc<std::cell::RefCell<Vec<String>>>,
+        stack: Rc<RefCell<Vec<Value>>>,
+        env: Rc<RefCell<Table>>,
+        call_frame: Rc<RefCell<Vec<String>>>,
+        _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
         _: usize,
     ) -> Result<usize, Box<dyn crate::errors::err::ErrTrait>> {
         let func_pos = (*stack)
@@ -52,7 +61,7 @@ impl InstructionBase for Call {
                             "
 Line {}: {}
          ^
-         -------- Expected {} argument for {} found {}
+         -------- Expected {} argument(s) for {} found {}
 ",
                             self.line, self.line_contents, arity, func, self.args_len
                         ),
@@ -80,13 +89,79 @@ Line {}: {}
                 }
                 func.call(stack.clone())?;
             }
+            Value::Class(class) => {
+                match class.get_method("__init__".to_string()) {
+                    Some(method) => {
+                        let arity = (*method).arity();
+                        if arity != self.args_len {
+                            return Err(Box::new(InstructionErr::new(
+                                format!(
+"
+Line {}: {}
+          ^
+          -------- Expected {} argument(s) for {} found {}
+",
+                                    self.line, self.line_contents, arity, method, self.args_len
+                                ),
+                                format!("{}(...)", method.name()),
+                            )));
+                        }
+                        let instance = Rc::new(Instance::new(class.clone()));
+                        let offset = (*stack).borrow().len().saturating_sub(self.args_len);
+                        Method::new(method.clone(), instance.clone()).call(stack.clone(), env, call_frame, offset)?;
+                        (*stack).borrow_mut().push(Value::Instance(instance.clone()));
+                    }
+                    None => {
+                        let instance = Instance::new(class.clone());
+                        (*stack).borrow_mut().push(Value::Instance(Rc::new(instance)));
+                    }
+                }
+            }
+            Value::Method(method) => {
+                let arity = method.func.arity();
+                if arity != self.args_len {
+                    return Err(Box::new(InstructionErr::new(
+                        format!(
+                            "
+Line {}: {}
+         ^
+         -------- Expected {} argument for {} found {}
+",
+                            self.line, self.line_contents, arity, method.func, self.args_len
+                        ),
+                        format!("{}(...)", method.func.name()),
+                    )));
+                }
+                let offset = (*stack).borrow().len().saturating_sub(self.args_len);
+                let val = method.call(stack.clone(), env, call_frame, offset)?;
+                (*stack).borrow_mut().push(val);
+            }
+            Value::ClassMethod(func) => {
+                let arity = (*func).arity();
+                if arity != self.args_len {
+                    return Err(Box::new(InstructionErr::new(
+                        format!(
+                            "
+Line {}: {}
+         ^
+         -------- Expected {} argument(s) for {} found {}
+",
+                            self.line, self.line_contents, arity, func, self.args_len
+                        ),
+                        format!("{}(...)", func.name()),
+                    )));
+                }
+                let offset = (*stack).borrow().len().saturating_sub(self.args_len).saturating_sub(1);
+                let val = func.call(stack.clone(), env, call_frame, offset)?;
+                (*stack).borrow_mut().push(val);
+            }
             _ => {
                 return Err(Box::new(InstructionErr::new(
                     format!(
                         "
 Line {}: {}
         ^
-        -------- Call pattern `identifier(...)` only allowed for functions, not {}
+        -------- Call pattern `identifier(...)` only allowed for functions/class initializations/methods, not {}
 ",
                         self.line, self.line_contents, val
                     ),

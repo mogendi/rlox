@@ -4,17 +4,20 @@ use std::{
     rc::Rc,
 };
 
-use crate::{errors::err::ErrTrait, values::values::Value, vm::table::Table};
+use crate::{
+    compiler::compiler::UpValue, errors::err::ErrTrait, values::values::Value, vm::table::Table,
+};
 
 use super::{
     err::InstructionErr,
     instructions::{InstructionBase, InstructionType},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DefinitionScope {
     Global,
     Local(usize),
+    UpValue(usize),
 }
 
 pub struct Define {
@@ -40,6 +43,9 @@ impl InstructionBase for Define {
         table: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
         _: usize,
+        _: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         match self.scope {
             DefinitionScope::Global => {
@@ -54,7 +60,7 @@ impl InstructionBase for Define {
                     stack.borrow()[current_stack_index()].clone(),
                 );
             }
-            DefinitionScope::Local(_) => {}
+            DefinitionScope::Local(_) | DefinitionScope::UpValue(_) => {}
         }
         Ok(0)
     }
@@ -103,6 +109,9 @@ impl InstructionBase for Resolve {
         env: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
         offset: usize,
+        upvalue_stack: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         match self.scope {
             DefinitionScope::Global => match (*env).borrow().resolve(&self.identifier) {
@@ -118,6 +127,10 @@ impl InstructionBase for Resolve {
             },
             DefinitionScope::Local(stack_idx) => {
                 let val = stack.borrow()[stack_idx.saturating_add(offset)].clone();
+                stack.borrow_mut().push(val);
+            }
+            DefinitionScope::UpValue(stack_idx) => {
+                let val = upvalue_stack.borrow()[stack_idx].value.clone();
                 stack.borrow_mut().push(val);
             }
         }
@@ -168,6 +181,9 @@ impl InstructionBase for Override {
         env: Rc<RefCell<Table>>,
         _: Rc<RefCell<Vec<String>>>,
         offset: usize,
+        upvalue_stack: Rc<RefCell<Vec<UpValue>>>,
+        _: usize,
+        _: usize,
     ) -> Result<usize, Box<dyn ErrTrait>> {
         let top_of_stack = stack.borrow().len() - 1;
         let val = stack.borrow_mut()[top_of_stack].clone();
@@ -185,6 +201,9 @@ impl InstructionBase for Override {
             }
             DefinitionScope::Local(stack_idx) => {
                 (*stack).borrow_mut()[stack_idx.saturating_add(offset)] = val;
+            }
+            DefinitionScope::UpValue(stack_idx) => {
+                (*upvalue_stack).borrow_mut()[stack_idx].value = val;
             }
         }
         Ok(0)

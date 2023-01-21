@@ -7,5 +7,6 @@ mod err;
 pub mod instructions;
 pub mod jump;
 pub mod print;
+pub mod properties;
 pub mod return_inst;
 pub mod unary;

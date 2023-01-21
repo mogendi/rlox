@@ -8,12 +8,13 @@ use crate::{
     vm::table::Table,
 };
 
-use super::token::Token;
+use super::token::{Token, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FunctionType {
     Script,
     Function(String, u32),
+    Method(String, u32),
 }
 
 #[derive(Debug)]
@@ -24,35 +25,67 @@ pub struct Local {
     const_: bool,
 }
 
-pub struct Compiler {
+#[derive(Debug)]
+pub struct UpValue {
+    // index of the local
+    pub index: usize,
+    pub value: Value,
+}
+
+pub struct Compiler<'a> {
     locals: Rc<RefCell<Vec<Local>>>,
     locals_count: usize,
     scope_depth: usize,
     pub type_: FunctionType,
     globals: Rc<RefCell<Table>>,
+    enclosing_compiler: Option<&'a Compiler<'a>>,
+    pub upvalues: Rc<RefCell<Vec<UpValue>>>,
+    pub context: String,
+    pub inheriting: Option<String>,
 }
 
-impl Compiler {
+impl<'a> Compiler<'a> {
     pub fn compile(
         src: Vec<u8>,
         type_: FunctionType,
         globals: Rc<RefCell<Table>>,
+        enclosing_compiler: Option<&'a Compiler>,
+        upvalues: Rc<RefCell<Vec<UpValue>>>,
+        inheriting: Option<String>,
     ) -> Result<Func, Box<dyn ErrTrait>> {
+        let pre_compile_upvalue_len = (*upvalues).borrow().len();
+        let context = match &type_ {
+            FunctionType::Script => String::from("__main__"),
+            FunctionType::Method(name, _) | FunctionType::Function(name, _) => name.clone(),
+        };
+
         let mut compiler = Compiler {
             locals: Rc::new(RefCell::new(Vec::new())),
             locals_count: 0,
             scope_depth: 0,
             type_: type_.clone(),
             globals,
+            enclosing_compiler,
+            upvalues,
+            context: context.clone(),
+            inheriting,
         };
         let scanner = Scanner::new(src);
         let mut chunk = Chunk::new();
         let parser = Parser::new(&scanner, &mut chunk, &mut compiler)?;
         parser.parse()?;
-        match type_ {
-            FunctionType::Script => Ok(Func::new("__main__".to_string(), chunk)),
-            FunctionType::Function(name, _) => Ok(Func::new(name, chunk)),
-        }
+        let upvalue_count = (*parser.compiler.borrow().upvalues)
+            .borrow()
+            .len()
+            .saturating_sub(pre_compile_upvalue_len);
+        let upvalues = parser.compiler.borrow().upvalues.clone();
+        Ok(Func::new(
+            context,
+            chunk,
+            pre_compile_upvalue_len,
+            upvalue_count,
+            upvalues.clone(),
+        ))
     }
 
     pub fn start_scope(&mut self) -> usize {
@@ -96,6 +129,14 @@ impl Compiler {
         DefinitionScope::Local((*self.locals).borrow().len() - 1)
     }
 
+    fn add_upvalue(&self, idx: usize) -> usize {
+        (*self.upvalues).borrow_mut().push(UpValue {
+            index: idx,
+            value: Value::Nil,
+        });
+        (*self.upvalues).borrow().len() - 1
+    }
+
     pub fn scope(&self) -> usize {
         self.scope_depth
     }
@@ -118,7 +159,20 @@ impl Compiler {
         }
         match (*self.globals).borrow().exists(&ident_str) {
             true => Some(DefinitionScope::Global),
-            false => None,
+            false => match self.enclosing_compiler {
+                Some(compiler) => match compiler.resolve(ident) {
+                    Some(scope) => match scope {
+                        DefinitionScope::Local(idx) => {
+                            let upvalue_idx = self.add_upvalue(idx);
+                            Some(DefinitionScope::UpValue(upvalue_idx))
+                        }
+                        DefinitionScope::UpValue(idx) => Some(DefinitionScope::UpValue(idx)),
+                        _ => Some(scope),
+                    },
+                    None => None,
+                },
+                None => None,
+            },
         }
     }
 
@@ -127,7 +181,7 @@ impl Compiler {
             return None;
         }
         let ident_str = format!("{}", ident);
-        for (idx, local) in (*self.locals).borrow().iter().rev().enumerate() {
+        for (idx, local) in (*self.locals).borrow().iter().enumerate() {
             if local.name == ident_str {
                 if local.uninit {
                     return None;
@@ -179,9 +233,16 @@ impl Compiler {
     pub fn globals(&self) -> Rc<RefCell<Table>> {
         self.globals.clone()
     }
+
+    pub fn inheriting(&self) -> Option<Token> {
+        match &self.inheriting {
+            Some(ident) => Some(Token::new(TokenType::IDENTIFIER, ident.as_bytes(), 0)),
+            None => None,
+        }
+    }
 }
 
-impl Debug for Compiler {
+impl<'a> Debug for Compiler<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

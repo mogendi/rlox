@@ -1,0 +1,15 @@
+class Test {
+    __init__(prop, prop2) {
+        this.prop = prop;
+        this.prop2 = prop2;
+        print "PROP: " + this.prop;
+        print "PROP 2: " + this.prop;
+    }
+}
+
+var prop = "Some very visible long text";
+var prop2 = 1;
+var test_inst = Test(prop, prop2);
+
+var a = 1;
+a.prop = 1;
