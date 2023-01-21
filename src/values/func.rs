@@ -44,20 +44,6 @@ impl Func {
         self.name.clone()
     }
 
-    fn dump_globals(env: Rc<RefCell<Table>>) {
-        println!("\n\n============== Globals =============\n\n");
-        print!("{}", (*env).borrow());
-        println!("\n\n====================================\n\n");
-    }
-
-    fn dump_stack(stack: Rc<RefCell<Vec<Value>>>) {
-        println!("\n\n============== Stack =============\n\n");
-        for value in (*stack).borrow().iter() {
-            print!("[{}]", value);
-        }
-        println!("\n\n==================================\n\n");
-    }
-
     pub fn call(
         &self,
         stack: Rc<RefCell<Vec<Value>>>,
@@ -80,13 +66,12 @@ impl Func {
 
         let code_len = self.chunk.code.len();
         if self.chunk.code.len() > 0 {
-            let mut offset;
             loop {
                 if *self.ip.borrow() >= code_len {
                     break;
                 }
                 let instruction = &self.chunk.code[*self.ip.borrow()];
-                offset = instruction.eval(
+                match instruction.eval(
                     stack.clone(),
                     env.clone(),
                     call_frame.clone(),
@@ -94,20 +79,26 @@ impl Func {
                     self.upvalues.clone(),
                     self.upvalue_offset,
                     self.upvalue_count,
-                )?;
-                if offset > 0 {
-                    self.ip.replace(offset);
-                } else {
-                    self.ip.replace_with(|&mut old| old + 1);
-                }
-                if (*call_frame).borrow().len() < call_frame_size {
-                    // since this is an early return, OP_POPN hasn't run yet, so we need
-                    // to do the cleanup here
-                    self.sync_upvalues(stack.clone(), stack_offset);
-                    let val = Ok((*stack).borrow_mut().pop().unwrap());
-                    (*stack).borrow_mut().truncate(stack_offset);
-                    self.ip.replace(pre_exec_ip);
-                    return val;
+                ) {
+                    Ok(offset) => {
+                        if offset > 0 {
+                            self.ip.replace(offset);
+                        } else {
+                            self.ip.replace_with(|&mut old| old + 1);
+                        }
+                        if (*call_frame).borrow().len() < call_frame_size {
+                            // since this is an early return, OP_POPN hasn't run yet, so we need
+                            // to do the cleanup here
+                            self.sync_upvalues(stack.clone(), stack_offset);
+                            let val = Ok((*stack).borrow_mut().pop().unwrap());
+                            (*stack).borrow_mut().truncate(stack_offset);
+                            self.ip.replace(pre_exec_ip);
+                            return val;
+                        }
+                    }
+                    Err(err) => {
+                        err.raise();
+                    }
                 }
             }
         }
@@ -152,9 +143,9 @@ impl Debug for Func {
 {}
 {}
 ",
-            "-".repeat(self.name.len() + 4),
+            "-".repeat(self.name.len() + 5),
             self.name,
-            "-".repeat(self.name.len() + 4),
+            "-".repeat(self.name.len() + 5),
             self.chunk
         )
     }

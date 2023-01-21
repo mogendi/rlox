@@ -15,10 +15,11 @@ use crate::{
         instructions::{Instruction, None, Pop},
         jump::{ForceJump, Jump},
         print::Print,
+        properties::{Get, Set},
         return_inst::Return,
         unary::{Unary, UnaryOp},
     },
-    values::values::Value,
+    values::{obj::Class, values::Value},
 };
 
 use super::{
@@ -436,7 +437,7 @@ impl<'a> Parser<'a> {
             self.advance()?;
             let infix_rule = construct_rule(self.get_previous()?.token_type);
             match infix_rule.infix {
-                Some(method) => method(self)?,
+                Some(method) => method(self, can_assign)?,
                 None => return Err(infix_not_found_err()),
             }
         }
@@ -466,6 +467,29 @@ impl<'a> Parser<'a> {
             line.number,
             self.scanner.line_to_string(),
         ))?;
+        Ok(())
+    }
+
+    pub fn dot(&'a self, can_assign: bool) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+        if can_assign && self.match_(TokenType::EQUAL)? {
+            self.expression()?;
+            let line = self.scanner.line();
+            self.push(Set::new(
+                format!("{}", id),
+                line.number,
+                self.scanner.line_to_string(),
+            ))?;
+        } else {
+            let line = self.scanner.line();
+            self.push(Get::new(
+                format!("{}", id),
+                line.number,
+                self.scanner.line_to_string(),
+            ))?;
+        }
+
         Ok(())
     }
 
@@ -751,6 +775,24 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn class_decl(&'a self) -> Result<(), Box<dyn ErrTrait>> {
+        self.consume(TokenType::IDENTIFIER)?;
+        let id = self.previous.borrow().as_ref().unwrap().clone();
+
+        let scope = self
+            .compiler
+            .borrow_mut()
+            .add_local(format!("{}", id), true);
+        self.compiler.borrow().mark_latest_init();
+
+        self.push(Constant::new(Value::Class(Rc::new(Class::new(format!(
+            "{}",
+            id
+        ))))))?;
+        self.push(Define::new(scope, format!("{}", id)))?;
+        Ok(())
+    }
+
     fn statement(&'a self) -> Result<(), Box<dyn ErrTrait>> {
         if self.match_(TokenType::PRINT)? {
             return self.print();
@@ -786,6 +828,9 @@ impl<'a> Parser<'a> {
         }
         if self.match_(TokenType::RETURN)? {
             return self.return_();
+        }
+        if self.match_(TokenType::CLASS)? {
+            return self.class_decl();
         }
         self.statement()
     }

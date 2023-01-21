@@ -5,7 +5,9 @@ use std::{
 };
 
 use crate::{
-    compiler::compiler::UpValue, instructions::err::InstructionErr, values::values::Value,
+    compiler::compiler::UpValue,
+    instructions::err::InstructionErr,
+    values::{obj::Instance, values::Value},
     vm::table::Table,
 };
 
@@ -87,13 +89,17 @@ Line {}: {}
                 }
                 func.call(stack.clone())?;
             }
+            Value::Class(class) => {
+                let instance = Instance::new(class.clone());
+                (*stack).borrow_mut().push(Value::Instance(Rc::new(instance)));
+            }
             _ => {
                 return Err(Box::new(InstructionErr::new(
                     format!(
                         "
 Line {}: {}
         ^
-        -------- Call pattern `identifier(...)` only allowed for functions, not {}
+        -------- Call pattern `identifier(...)` only allowed for functions/class initializations/methods, not {}
 ",
                         self.line, self.line_contents, val
                     ),

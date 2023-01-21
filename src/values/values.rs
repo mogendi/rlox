@@ -8,6 +8,7 @@ use crate::errors::err::ErrTrait;
 use super::{
     err::ValueErr,
     func::{Func, Native},
+    obj::{Class, Instance},
 };
 
 #[derive(PartialEq, Clone)]
@@ -18,6 +19,8 @@ pub enum Value {
     Bool(bool),
     Func(Rc<Func>),
     Native(Rc<Native>),
+    Class(Rc<Class>),
+    Instance(Rc<Instance>),
 }
 
 impl Value {
@@ -47,6 +50,8 @@ impl Debug for Value {
             Value::String(val) => format!("<String {}>", val.to_owned()),
             Value::Func(func) => format!("<Fun {}>", (*func).name()),
             Value::Native(func) => format!("<Native Fun {}>", (*func).name()),
+            Value::Class(class) => format!("<Class {}>", (*class).name()),
+            Value::Instance(instance) => format!("<Instance {}>", (*instance).name()),
         };
 
         write!(f, "{}", str)
@@ -65,6 +70,8 @@ impl Display for Value {
             Value::String(val) => val.to_owned(),
             Value::Func(func) => format!("<Fun {}>", (*func).name()),
             Value::Native(func) => format!("<Native Fun {}>", (*func).name()),
+            Value::Class(class) => format!("<Class {}>", (*class).name()),
+            Value::Instance(instance) => format!("<Instance {}>", (*instance).name()),
         };
 
         write!(f, "{}", str)

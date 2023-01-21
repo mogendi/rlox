@@ -24,6 +24,8 @@ pub enum InstructionType {
     OP_JUMP,
     OP_NONE,
     OP_CALL,
+    OP_SET,
+    OP_GET,
 }
 
 impl Display for InstructionType {
